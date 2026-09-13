@@ -38,7 +38,7 @@ ADR 0001 gates G1–G5 still block Stage C. Gate G6 still blocks device-policy r
 
 ## 3. Stage A — Offline software
 
-### A0 — Foundations
+### A0 — Foundations ✅ (done 2026-09-13, see [specs/a0-foundations.md](specs/a0-foundations.md))
 - **Goal:** agree the software stack; create an empty, testable skeleton.
 - **Deliverables:**
   - ADR 0002 (software stack and tooling)

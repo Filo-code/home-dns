@@ -62,7 +62,7 @@ Revised 2026-09-13: offline software first, Pi and network integration last. Ful
 | Stage | Phases | Touches Pi / network? | Status |
 |---|---|---|---|
 | Done | Architecture comparison + ADR 0001; interim network snapshot | No | ✅ |
-| **A: offline software** | A0 foundations · A1 configuration · A2 blocklist pipeline · A3 filtering logic · A4 storage & maintenance · A5 monitoring · A6 Telegram · A7 backend · A8 dashboard · A9 offline integration rehearsal | **No** | 🔨 A0 in progress |
+| **A: offline software** | ✅ A0 foundations · A1 configuration · A2 blocklist pipeline · A3 filtering logic · A4 storage & maintenance · A5 monitoring · A6 Telegram · A7 backend · A8 dashboard · A9 offline integration rehearsal | **No** | ✅ A0 done · next: A1 (awaiting approval) |
 | B: pre-deployment audits | B1 Raspberry Pi audit · B2 Fastweb Seven network audit · B3 architecture re-validation | Read-only | — |
 | C: Pi deployment, isolated | C1 Pi-hole + Unbound install · C2 real provider adapter · C3 live pipeline/monitoring/alerts · C4 backend + dashboard · C5 backup/restore + rollback rehearsal | Pi only | ⛔ Not authorised |
 | D: network integration | D1 pilot devices · D2 device policies (G6) · D3 IPv6 + bypass · D4 network cutover · D5 soak + final docs | Yes, each change approved | ⛔ Not authorised |
@@ -77,14 +77,16 @@ Revised 2026-09-13: offline software first, Pi and network integration last. Ful
 | `config/` | Configuration templates: DNS, groups, policies, protected domains, Telegram, monitoring, storage |
 | `lists/` | Blocklist and allowlist sources by category |
 | `scripts/` | Audit, install, setup, update, blocklist pipeline, monitoring, maintenance, backup, restore |
-| `dashboard/` | Custom dashboard: backend, frontend, shared code |
+| `src/home_dns/` | Python package: core, config, providers, storage, API backend, CLI |
+| `dashboard/frontend/` | Dashboard UI (React + Vite, built to static files) |
 | `tests/` | DNS, security, compatibility, blocklist, API and dashboard tests |
 | `deployment/` | systemd units, reverse-proxy config (if needed) |
 | `data/` | Runtime data placeholder. Real data lives on the Pi and is **not** committed |
 
 Deviations from the original layout in `CLAUDE.md` §8:
 - `deployment/docker/` is intentionally **omitted**, because ADR 0001 selects a native install.
-- `docs/adr/` and `docs/audits/` were added.
+- `docs/adr/`, `docs/audits/` and `docs/specs/` were added.
+- `src/home_dns/` holds all Python code. The backend is `home_dns.api`, and `dashboard/backend/` and `dashboard/shared/` were removed ([ADR 0002](docs/adr/0002-software-stack.md)).
 
 ## Installation · Configuration · Dashboard · Telegram · Maintenance · Backups · Troubleshooting
 

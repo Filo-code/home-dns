@@ -46,3 +46,12 @@ Thumbs.db
 .vscode/*
 !.vscode/extensions.json
 .idea/
+
+# ---- A0: local dev state and production-only config ----
+.local/
+config/app/production.yaml
+.coverage
+.coverage.*
+htmlcov/
+.mypy_cache/
+.ruff_cache/

@@ -6,6 +6,7 @@ Configuration **templates and source-of-truth files** tracked in Git.
 
 | Directory | Purpose | Filled in |
 |---|---|---|
+| `app/` | Application profiles: `development.yaml` (mock, runnable offline), `production.example.yaml` (placeholders). `production.yaml` is git-ignored | A0 |
 | `dns/pihole/` | Pi-hole settings we manage (subset of `pihole.toml`) | Phase 6 |
 | `dns/unbound/` | Unbound configuration (not covered by Pi-hole Teleporter; must be backed up) | Phase 6 |
 | `groups/` | Device policy groups | Phase 10 |

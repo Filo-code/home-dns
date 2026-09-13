@@ -1,0 +1,18 @@
+# Development profile — mock provider, local paths, loopback bind.
+# Safe to commit. Contains no real network values. Never used in production:
+# the loader rejects it when the production environment is selected.
+environment: development
+
+paths:
+  data_dir: .local/data
+  log_dir: .local/logs
+  backup_dir: .local/backups
+
+dns_provider:
+  kind: mock
+  mock:
+    seed: 42
+
+api:
+  bind_host: 127.0.0.1
+  port: 8080

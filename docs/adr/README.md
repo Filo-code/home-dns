@@ -6,7 +6,7 @@ ADRs are never deleted. A changed decision is recorded in a **new** ADR that sup
 | ADR | Title | Status |
 |---|---|---|
 | [0001](0001-dns-architecture.md) | DNS architecture: Pi-hole v6 + Unbound | Approved for implementation planning — pending Raspberry Pi audit and final Fastweb Seven network validation |
-| 0002 | Software stack and tooling | Not yet written (A0) |
+| [0002](0002-software-stack.md) | Software stack and tooling | Accepted |
 | 0003 | Configuration model | Not yet written (A1) |
 | 0004 | Blocklist strategy | Not yet written (A2/A3) |
 | 0005 | Backend and dashboard architecture | Not yet written (A7) |

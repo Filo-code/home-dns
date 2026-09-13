@@ -1,14 +1,17 @@
 # tests/
 
-Automated tests (CLAUDE.md §42–§43). **Empty until the relevant phase.**
+Automated tests (CLAUDE.md §42–§43). Run with `make test`. Rules: [../docs/development.md](../docs/development.md#testing-rules).
 
-| Directory | Covers |
-|---|---|
-| `dns/` | Resolution, DNSSEC, IPv4/IPv6, cache, blocked/allowed/protected/local domains |
-| `security/` | Malware, phishing, tracker, ad, gambling, adult. Safe, documented test domains only |
-| `compatibility/` | Windows, Android, iOS/iPadOS, Smart TV, Xbox, streaming, social networks |
-| `blocklists/` | Pipeline, tripwire, syntax, sanity checks |
-| `api/` | Pi-hole API contract tests (catch breaking changes on upgrade) |
-| `dashboard/` | Backend and frontend tests |
+| Directory | Covers | Since |
+|---|---|---|
+| `unit/` | config (placeholders, loader, readiness), core models, providers, storage, bootstrap, CLI | A0 |
+| `contract/` | `DnsProvider` contract: the same tests for every provider (mock now, Pi-hole v6 in C2) | A0 |
+| `api/` | backend HTTP API | A0 |
+| `architecture/` | package import boundaries; no real IPs/MACs in code or config | A0 |
+| `dns/` | resolution, DNSSEC, IPv4/IPv6, cache, blocked/allowed/protected/local domains | C1 |
+| `security/` | malware, phishing, tracker, ad, gambling, adult (safe, documented test domains only) | A3 |
+| `compatibility/` | Windows, Android, iOS/iPadOS, Smart TV, Xbox, streaming, social networks | A3 / D |
+| `blocklists/` | pipeline, tripwire, syntax, sanity checks | A2 |
+| `dashboard/` | end-to-end browser tests (unit tests live next to the frontend code) | A8 |
 
-Performance rule: measure before and after major changes. Do not optimise prematurely.
+The rule "measure before and after major changes; do not optimise prematurely" still applies.

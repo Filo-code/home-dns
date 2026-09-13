@@ -11,9 +11,4 @@ disk_usage_thresholds_percent:
 
 query_retention_days_target: 30   # "approximately 30 days — adjust if technically justified"
 
-paths:                             # proposed layout /opt/home-dns/{config,data,logs,backups}; confirm in Phase 12
-  base_dir: null
-  config_dir: null
-  data_dir: null
-  log_dir: null
-  backup_dir: null
+# Filesystem paths are application settings: see config/app/<env>.yaml (paths.*).

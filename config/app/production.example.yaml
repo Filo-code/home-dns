@@ -1,0 +1,24 @@
+# Production profile TEMPLATE — every environment-specific value is a placeholder.
+# Copy to config/app/production.yaml on the Raspberry Pi (git-ignored) and replace
+# placeholders only after the Stage B audits. Secrets never go here: set
+# HOME_DNS_PIHOLE_APP_PASSWORD through the systemd EnvironmentFile.
+#
+#   <<AUDIT:name>>     known only after the Raspberry Pi / Fastweb Seven audits
+#   <<REQUIRED:name>>  a value the owner must choose
+environment: production
+
+paths:
+  data_dir: "<<AUDIT:paths.data_dir>>"      # microSD vs USB SSD, ADR 0007
+  log_dir: "<<AUDIT:paths.log_dir>>"
+  backup_dir: "<<AUDIT:paths.backup_dir>>"
+
+dns_provider:
+  kind: pihole_v6
+  pihole_v6:
+    base_url: "<<AUDIT:dns_provider.pihole_v6.base_url>>"
+    request_timeout_seconds: 5
+    verify_tls: true
+
+api:
+  bind_host: "<<AUDIT:api.bind_host>>"      # the Pi's LAN address, after the network audit
+  port: "<<REQUIRED:api.port>>"
