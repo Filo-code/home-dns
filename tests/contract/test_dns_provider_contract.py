@@ -35,3 +35,49 @@ def test_clients_are_valid_unique_and_ordered(provider: DnsProvider) -> None:
 
 def test_summary_client_count_matches_clients(provider: DnsProvider) -> None:
     assert provider.get_summary().unique_clients == len(provider.list_clients())
+
+
+# ----------------------------------------------------------------- A2: blocklist deployment
+
+from home_dns.core.blocklists import BlockEntry  # noqa: E402
+
+ENTRIES = frozenset(
+    {BlockEntry("ads.contract.example", True), BlockEntry("track.contract.example", False)}
+)
+
+
+def test_dry_run_deployment_changes_nothing(provider: DnsProvider) -> None:
+    result = provider.deploy_blocklist("contract-list", ENTRIES)
+    assert result.dry_run is True and result.applied is False
+    assert result.entries == 2
+    assert provider.lookup_domain("ads.contract.example").blocked is False
+
+
+def test_deployment_blocks_with_subdomain_semantics(provider: DnsProvider) -> None:
+    result = provider.deploy_blocklist("contract-list", ENTRIES, dry_run=False)
+    assert result.applied is True
+    assert provider.lookup_domain("ads.contract.example").matched_sources == ("contract-list",)
+    assert provider.lookup_domain("x.ads.contract.example").blocked is True
+    assert provider.lookup_domain("track.contract.example").blocked is True
+    assert provider.lookup_domain("x.track.contract.example").blocked is False
+    assert provider.lookup_domain("contract.example").blocked is False
+
+
+def test_redeployment_replaces_previous_entries(provider: DnsProvider) -> None:
+    provider.deploy_blocklist("contract-list", ENTRIES, dry_run=False)
+    provider.deploy_blocklist(
+        "contract-list", frozenset({BlockEntry("new.contract.example", True)}), dry_run=False
+    )
+    assert provider.lookup_domain("ads.contract.example").blocked is False
+    assert provider.lookup_domain("new.contract.example").blocked is True
+
+
+def test_sources_are_independent(provider: DnsProvider) -> None:
+    provider.deploy_blocklist("list-one", ENTRIES, dry_run=False)
+    provider.deploy_blocklist(
+        "list-two", frozenset({BlockEntry("ads.contract.example", True)}), dry_run=False
+    )
+    assert provider.lookup_domain("ads.contract.example").matched_sources == (
+        "list-one",
+        "list-two",
+    )

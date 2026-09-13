@@ -116,6 +116,24 @@ class SourceUrls(_Model):
         return self
 
 
+class SanityLimits(_Model):
+    """Evidence-based limits per source. Every field is optional until approved by the owner.
+
+    Exceeding a limit is an anomaly that holds the update for review; it is not a hard failure.
+    """
+
+    min_entries: int | None = Field(default=None, ge=1)
+    max_entries: int | None = Field(default=None, ge=1)
+    max_added_ratio: float | None = Field(default=None, gt=0)
+    max_removed_ratio: float | None = Field(default=None, gt=0, le=1)
+
+    @model_validator(mode="after")
+    def _ordered(self) -> SanityLimits:
+        if self.min_entries and self.max_entries and self.min_entries > self.max_entries:
+            raise ValueError("min_entries cannot exceed max_entries")
+        return self
+
+
 class BlocklistSource(_Model):
     id: Slug
     name: NonEmptyText
@@ -125,6 +143,8 @@ class BlocklistSource(_Model):
     categories: tuple[Category, ...] = Field(min_length=1)
     urls: SourceUrls
     update_interval_hours: int = Field(ge=1, le=168)
+    max_age_hours: int | None = Field(default=None, ge=1, le=720)
+    sanity: SanityLimits | None = None
 
 
 # --------------------------------------------------------------------------------- rules

@@ -64,7 +64,7 @@ ADR 0001 gates G1–G5 still block Stage C. Gate G6 still blocks device-policy r
   - unresolved placeholders in production mode
 - **Depends on:** A0
 
-### A2 — Blocklist pipeline
+### A2 — Blocklist pipeline ✅ (done 2026-09-13, see [ADR 0004](adr/0004-blocklist-pipeline.md); sanity limits pending approval)
 - **Goal:** turn untrusted list sources into validated, versioned, deployable artifacts that can be rolled back.
 - **Stages (owner-approved order, 2026-09-13):**
   1. download success

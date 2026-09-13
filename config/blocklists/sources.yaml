@@ -17,6 +17,8 @@ sources:
       primary: https://cdn.jsdelivr.net/gh/hagezi/dns-blocklists@latest/adblock/pro.txt
       fallback: https://raw.githubusercontent.com/hagezi/dns-blocklists/main/adblock/pro.txt
     update_interval_hours: 24   # reviewed in A2
+    max_age_hours: 48           # owner-approved freshness limit (header "Last modified")
+    # sanity: limits are added only after the owner approves measured values (A2 report)
 
   - id: hagezi-tif-mini
     name: HaGeZi Threat Intelligence Feeds (mini)
@@ -28,3 +30,5 @@ sources:
       primary: https://cdn.jsdelivr.net/gh/hagezi/dns-blocklists@latest/adblock/tif.mini.txt
       fallback: https://raw.githubusercontent.com/hagezi/dns-blocklists/main/adblock/tif.mini.txt
     update_interval_hours: 24   # reviewed in A2
+    max_age_hours: 48           # owner-approved freshness limit (header "Last modified")
+    # sanity: limits are added only after the owner approves measured values (A2 report)

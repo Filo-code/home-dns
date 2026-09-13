@@ -33,9 +33,14 @@ from home_dns.config.loader import (
     resolve_environment,
     scan_config_tree,
 )
+from home_dns.config.placeholders import Placeholder
 from home_dns.config.readiness import ReadinessReport, evaluate_readiness
 from home_dns.config.settings import Environment
+from home_dns.pipeline.blocklists import Outcome, PipelineOptions, SourceReport, run_update
+from home_dns.pipeline.fetch import Fetcher, HttpxFetcher
 from home_dns.providers.base import ProviderError
+from home_dns.providers.mock import MockDnsProvider
+from home_dns.storage.artifacts import ArtifactStore, ArtifactStoreError
 
 EXIT_OK = 0
 EXIT_NOT_READY = 1
@@ -75,6 +80,25 @@ def _build_parser() -> argparse.ArgumentParser:
 
     serve = commands.add_parser("serve", help="run the API (development only in A0)")
     _add_config_arguments(serve)
+
+    blocklists = commands.add_parser("blocklists", help="blocklist pipeline (development only)")
+    actions = blocklists.add_subparsers(dest="blocklists_command", required=True)
+    update = actions.add_parser("update", help="download, validate and (with --apply) activate")
+    _add_config_arguments(update)
+    update.add_argument("--source", action="append", default=None, help="limit to source id(s)")
+    update.add_argument("--apply", action="store_true", help="activate in the local artifact store")
+    update.add_argument(
+        "--accept-anomalies",
+        action="store_true",
+        help="continue past sanity anomalies after manual review (never the tripwire)",
+    )
+    update.add_argument("--format", choices=["text", "json"], default="text")
+    status = actions.add_parser("status", help="show active and previous artifacts")
+    _add_config_arguments(status)
+    rollback = actions.add_parser("rollback", help="restore the previous artifact of a source")
+    _add_config_arguments(rollback)
+    rollback.add_argument("source")
+    rollback.add_argument("--apply", action="store_true", help="perform the rollback")
     return parser
 
 
@@ -252,18 +276,119 @@ def _serve(args: argparse.Namespace, err: TextIO) -> int:
     return EXIT_OK
 
 
+_SUCCESS_OUTCOMES = {Outcome.ACTIVATED, Outcome.WOULD_ACTIVATE, Outcome.UNCHANGED}
+
+
+def _print_source_report(report: SourceReport, dry_run: bool, out: TextIO) -> None:
+    suffix = " (dry-run)" if dry_run else ""
+    print(f"{report.source_id}: {report.outcome.value}{suffix}", file=out)
+    for attempt in report.attempts:
+        verdict = "accepted" if attempt.accepted else f"rejected: {attempt.reason}"
+        print(f"  attempt {attempt.role} {attempt.url} — {verdict}", file=out)
+        for result in attempt.stages:
+            print(f"    {result.status.value:<8}{result.stage.value:<28}{result.detail}", file=out)
+    for result in report.stages:
+        print(f"  {result.status.value:<10}{result.stage.value:<28}{result.detail}", file=out)
+    for alert in report.alerts:
+        print(f"  alert [{alert.severity}] {alert.event}: {alert.message}", file=out)
+
+
+def _blocklists(
+    args: argparse.Namespace,
+    out: TextIO,
+    err: TextIO,
+    now: Callable[[], datetime],
+    fetcher: Fetcher | None,
+) -> int:
+    try:
+        config, config_dir = _load(args)
+        filtering = load_filtering_config(config_dir, now=now())
+    except ConfigLoadError as exc:
+        print(f"configuration error: {exc}", file=err)
+        return EXIT_LOAD_ERROR
+    if config.environment is Environment.PRODUCTION:
+        print(
+            "blocklist pipeline is development-only until production activation (phase C3)",
+            file=err,
+        )
+        return EXIT_NOT_READY
+    if filtering.errors:
+        print("filtering configuration has errors; run validate-config", file=err)
+        return EXIT_LOAD_ERROR
+    data_dir = config.settings.paths.data_dir
+    if isinstance(data_dir, Placeholder):
+        print(f"paths.data_dir is unresolved ({data_dir.token})", file=err)
+        return EXIT_NOT_READY
+    store = ArtifactStore(config.resolve(data_dir) / "blocklists")
+    sources = filtering.config.sources
+
+    if args.blocklists_command == "status":
+        for source in sources:
+            state = store.state(source.id)
+            line = f"{source.id}: current={state.current or '-'} previous={state.previous or '-'}"
+            if state.current:
+                meta = store.read(source.id, state.current).metadata
+                line += (
+                    f" version={meta.get('version')} entries={meta.get('valid_entries')}"
+                    f" activated_at={meta.get('activated_at')}"
+                )
+            print(line, file=out)
+        return EXIT_OK
+
+    if args.blocklists_command == "rollback":
+        try:
+            change = store.rollback(args.source, dry_run=not args.apply)
+        except ArtifactStoreError as exc:
+            print(f"rollback refused: {exc}", file=err)
+            return EXIT_NOT_READY
+        mode = "rolled back" if args.apply else "dry-run: would roll back"
+        print(
+            f"{args.source}: {mode} current {change.before.current} -> {change.after.current}",
+            file=out,
+        )
+        return EXIT_OK
+
+    selected = [s for s in sources if not args.source or s.id in args.source]
+    unknown = sorted(set(args.source or ()) - {s.id for s in sources})
+    if unknown:
+        print(f"unknown source(s): {', '.join(unknown)}", file=err)
+        return EXIT_LOAD_ERROR
+    options = PipelineOptions(
+        now=now(), dry_run=not args.apply, accept_anomalies=args.accept_anomalies
+    )
+    reports = run_update(
+        selected,
+        protected=filtering.config.protected_domains(),
+        fetcher=fetcher or HttpxFetcher(),
+        store=store,
+        test_provider_factory=MockDnsProvider,
+        options=options,
+    )
+    if args.format == "json":
+        json.dump([r.to_dict() for r in reports], out, indent=2, default=str)
+        out.write("\n")
+    else:
+        for report in reports:
+            _print_source_report(report, options.dry_run, out)
+    return EXIT_OK if all(r.outcome in _SUCCESS_OUTCOMES for r in reports) else EXIT_NOT_READY
+
+
 def main(
     argv: Sequence[str] | None = None,
     *,
     out: TextIO | None = None,
     err: TextIO | None = None,
     now: Callable[[], datetime] | None = None,
+    fetcher: Fetcher | None = None,
 ) -> int:
     out = out or sys.stdout
     err = err or sys.stderr
+    clock = now or (lambda: datetime.now(UTC))
     args = _build_parser().parse_args(argv)
     if args.command == "validate-config":
-        return _validate_config(args, out, err, now or (lambda: datetime.now(UTC)))
+        return _validate_config(args, out, err, clock)
+    if args.command == "blocklists":
+        return _blocklists(args, out, err, clock, fetcher)
     return _serve(args, err)
 
 

@@ -9,7 +9,14 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 
-from home_dns.core.models import DnsClient, DnsSummary, ProviderHealth
+from home_dns.core.blocklists import BlockEntry
+from home_dns.core.models import (
+    BlocklistDeployment,
+    DnsClient,
+    DnsSummary,
+    DomainLookup,
+    ProviderHealth,
+)
 
 
 class ProviderError(Exception):
@@ -25,7 +32,7 @@ class ProviderNotAvailableError(ProviderError):
 
 
 class DnsProvider(ABC):
-    """Read-only in A0. Mutating operations arrive with their models and take dry_run=True."""
+    """Mutating operations take ``dry_run: bool = True`` and change nothing when dry-running."""
 
     @property
     @abstractmethod
@@ -43,3 +50,13 @@ class DnsProvider(ABC):
     @abstractmethod
     def list_clients(self) -> list[DnsClient]:
         """Known clients, ordered by client_id."""
+
+    @abstractmethod
+    def deploy_blocklist(
+        self, source_id: str, entries: frozenset[BlockEntry], *, dry_run: bool = True
+    ) -> BlocklistDeployment:
+        """Replace all entries of one blocklist source with a validated artifact."""
+
+    @abstractmethod
+    def lookup_domain(self, domain: str) -> DomainLookup:
+        """Whether a normalized domain is blocked by deployed blocklists, and by which sources."""

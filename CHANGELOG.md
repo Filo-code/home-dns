@@ -41,6 +41,19 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Dates are ISO 
   - `config/rules/{allow,deny,regex}.yaml`
   - `config/protected-domains/{italian,technology,infrastructure}.yaml` (empty until A3)
 
+### Added — A2 blocklist pipeline
+- 2026-09-13 — ADR 0004, operational guide `docs/blocklists.md`, measurement report `docs/research/2026-09-13-hagezi-measurements.md` with a sanity-limit proposal (not configured).
+- 2026-09-13 — `core.blocklists`: header, adblock/hosts/domains parsing, normalization, deduplication, protected-domain tripwire, deterministic artifacts, delta and sanity verdicts.
+- 2026-09-13 — `storage.artifacts`: content-addressed store, `current`/`previous`, atomic writes, integrity checks, dry-run rollback.
+- 2026-09-13 — `pipeline.fetch` (httpx, byte cap, no redirects) and `pipeline.blocklists`:
+  - the 13 steps in owner-approved order
+  - jsDelivr → GitHub fallback with a 48 h freshness limit
+  - keep the previous artifact when nothing is acceptable
+  - anomalies held for review; tripwire as a hard gate
+- 2026-09-13 — `DnsProvider.deploy_blocklist` (dry-run) and `lookup_domain`, with contract tests.
+- 2026-09-13 — CLI `home-dns blocklists update|status|rollback`; `scripts/blocklists/measure_sources.py`; `network`-marked real-list test.
+- 2026-09-13 — Source schema: `max_age_hours` (48 for both HaGeZi lists) and optional `sanity` limits.
+
 ### Changed
 - 2026-09-13 — `groups.yaml` no longer holds devices; device assignments move to backend storage (A7).
 - 2026-09-13 — Removed `dashboard/backend/` and `dashboard/shared/`; the backend lives in `src/home_dns/api/`.

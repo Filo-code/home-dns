@@ -88,3 +88,16 @@ class DnsClient(_Model):
         if self.blocked_queries > self.total_queries:
             raise ValueError("blocked_queries cannot exceed total_queries")
         return self
+
+
+class BlocklistDeployment(_Model):
+    source_id: str = Field(min_length=1)
+    entries: int = Field(ge=0)
+    dry_run: bool
+    applied: bool
+
+
+class DomainLookup(_Model):
+    domain: str
+    blocked: bool
+    matched_sources: tuple[str, ...] = ()

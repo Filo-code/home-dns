@@ -224,3 +224,119 @@ def test_cross_reference_error_exits_2(make_config_dir: MakeConfigDir) -> None:
     assert code == 2
     assert "unknown group 'GHOST'" in out
     assert "Result: NOT READY" in out
+
+
+# ------------------------------------------------------------------ A2: blocklists commands
+
+from tests.blocklist_fixtures import ScriptedFetcher, adblock_list, domains, ok  # noqa: E402
+
+_A_URL = "https://cdn.example/a.txt"
+_B_URL = "https://cdn.example/b.txt"
+
+
+def _lists_fetcher(count: int = 40) -> ScriptedFetcher:
+    return ScriptedFetcher(
+        {
+            _A_URL: ok(_A_URL, adblock_list(domains(count), last_modified=FIXED_NOW)),
+            _B_URL: ok(_B_URL, "\n".join(domains(count, "mal")) + "\n" + "# pad " * 300 + "\n"),
+        }
+    )
+
+
+def _bl(
+    config_dir: Path, *argv: str, fetcher: ScriptedFetcher | None = None
+) -> tuple[int, str, str]:
+    out, err = io.StringIO(), io.StringIO()
+    code = cli.main(
+        ["blocklists", *argv, "--config-dir", str(config_dir)],
+        out=out,
+        err=err,
+        now=lambda: FIXED_NOW,
+        fetcher=fetcher or _lists_fetcher(),
+    )
+    return code, out.getvalue(), err.getvalue()
+
+
+def test_blocklists_update_is_dry_run_by_default(make_config_dir: MakeConfigDir) -> None:
+    config_dir = make_config_dir(DEV_PROFILE)
+    code, out, _ = _bl(config_dir, "update")
+    assert code == 0
+    assert "list-a: would_activate (dry-run)" in out
+    assert "list-b: would_activate (dry-run)" in out
+    assert not (config_dir.parent / ".local").exists()
+
+
+def test_blocklists_apply_status_and_rollback(make_config_dir: MakeConfigDir) -> None:
+    config_dir = make_config_dir(DEV_PROFILE)
+    assert _bl(config_dir, "update", "--apply")[0] == 0
+    code, out, _ = _bl(config_dir, "status")
+    assert code == 0 and "list-a: current=" in out and "entries=40" in out
+
+    code, _, err = _bl(config_dir, "rollback", "list-a", "--apply")
+    assert code == 1 and "no previous" in err
+
+    assert _bl(config_dir, "update", "--apply", fetcher=_lists_fetcher(45))[0] == 0
+    code, out, _ = _bl(config_dir, "rollback", "list-a")
+    assert code == 0 and "dry-run: would roll back" in out
+    code, out, _ = _bl(config_dir, "rollback", "list-a", "--apply")
+    assert code == 0 and "rolled back" in out
+    assert "entries=40" in _bl(config_dir, "status")[1]
+
+
+def test_blocklists_update_single_source_and_json(make_config_dir: MakeConfigDir) -> None:
+    fetcher = _lists_fetcher()
+    code, out, _ = _bl(
+        make_config_dir(DEV_PROFILE),
+        "update",
+        "--source",
+        "list-a",
+        "--format",
+        "json",
+        fetcher=fetcher,
+    )
+    payload = json.loads(out)
+    assert code == 0
+    assert [r["source_id"] for r in payload] == ["list-a"]
+    assert fetcher.calls == [_A_URL]
+
+
+def test_blocklists_unknown_source_exits_2(make_config_dir: MakeConfigDir) -> None:
+    code, _, err = _bl(make_config_dir(DEV_PROFILE), "update", "--source", "nope")
+    assert code == 2 and "unknown source" in err
+
+
+def test_blocklists_failed_update_exits_1(make_config_dir: MakeConfigDir) -> None:
+    code, out, _ = _bl(make_config_dir(DEV_PROFILE), "update", fetcher=ScriptedFetcher({}))
+    assert code == 1 and "kept_previous" in out and "blocklist_update_failure" in out
+
+
+def test_blocklists_refused_in_production(repo_config_dir: Path) -> None:
+    out, err = io.StringIO(), io.StringIO()
+    code = cli.main(
+        [
+            "blocklists",
+            "update",
+            "--env",
+            "production",
+            "--profile",
+            str(repo_config_dir / "app" / "production.example.yaml"),
+        ],
+        out=out,
+        err=err,
+    )
+    assert code == 1 and "development-only" in err.getvalue()
+
+
+def test_blocklists_config_problems(make_config_dir: MakeConfigDir, tmp_path: Path) -> None:
+    code, _, err = _bl(tmp_path / "missing", "update")
+    assert code == 2 and "configuration error" in err
+
+    bad = _EXPIRING_ALLOW.replace("[SMART-TV]", "[GHOST]")
+    code, _, err = _bl(make_config_dir(DEV_PROFILE, **{"rules__allow.yaml": bad}), "status")
+    assert code == 2 and "filtering configuration has errors" in err
+
+
+def test_blocklists_unresolved_data_dir(make_config_dir: MakeConfigDir) -> None:
+    text = DEV_PROFILE.replace("data_dir: .local/data", 'data_dir: "<<AUDIT:paths.data_dir>>"')
+    code, _, err = _bl(make_config_dir(text), "status")
+    assert code == 1 and "unresolved" in err

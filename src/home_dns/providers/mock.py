@@ -12,7 +12,15 @@ from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
 from ipaddress import IPv4Address, IPv6Address
 
-from home_dns.core.models import DnsClient, DnsSummary, HealthStatus, ProviderHealth
+from home_dns.core.blocklists import BlockEntry
+from home_dns.core.models import (
+    BlocklistDeployment,
+    DnsClient,
+    DnsSummary,
+    DomainLookup,
+    HealthStatus,
+    ProviderHealth,
+)
 from home_dns.providers.base import DnsProvider
 
 SAMPLE_DEVICE_NAMES: tuple[str, ...] = (
@@ -42,6 +50,7 @@ class MockDnsProvider(DnsProvider):
         self._seed = seed
         self._now = now
         self._health_status = health_status
+        self._blocklists: dict[str, frozenset[BlockEntry]] = {}
 
     @property
     def name(self) -> str:
@@ -84,3 +93,26 @@ class MockDnsProvider(DnsProvider):
             unique_clients=len(clients),
             collected_at=self._now(),
         )
+
+    def deploy_blocklist(
+        self, source_id: str, entries: frozenset[BlockEntry], *, dry_run: bool = True
+    ) -> BlocklistDeployment:
+        if not dry_run:
+            self._blocklists[source_id] = entries
+        return BlocklistDeployment(
+            source_id=source_id, entries=len(entries), dry_run=dry_run, applied=not dry_run
+        )
+
+    def lookup_domain(self, domain: str) -> DomainLookup:
+        labels = domain.split(".")
+        ancestors = {".".join(labels[i:]) for i in range(1, len(labels))}
+        matched = tuple(
+            sorted(
+                source_id
+                for source_id, entries in self._blocklists.items()
+                if BlockEntry(domain, False) in entries
+                or BlockEntry(domain, True) in entries
+                or any(BlockEntry(parent, True) in entries for parent in ancestors)
+            )
+        )
+        return DomainLookup(domain=domain, blocked=bool(matched), matched_sources=matched)

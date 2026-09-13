@@ -21,6 +21,12 @@ class _FailingProvider(DnsProvider):
     def list_clients(self) -> list[DnsClient]:  # pragma: no cover - not used by health
         raise ProviderUnavailableError("unreachable")
 
+    def deploy_blocklist(self, source_id, entries, *, dry_run=True):  # type: ignore[no-untyped-def]  # pragma: no cover
+        raise ProviderUnavailableError("unreachable")
+
+    def lookup_domain(self, domain):  # type: ignore[no-untyped-def]  # pragma: no cover
+        raise ProviderUnavailableError("unreachable")
+
 
 def _client(provider: DnsProvider, env: Environment = Environment.DEVELOPMENT) -> TestClient:
     return TestClient(create_app(environment=env, provider=provider))

@@ -62,7 +62,7 @@ Revised 2026-09-13: offline software first, Pi and network integration last. Ful
 | Stage | Phases | Touches Pi / network? | Status |
 |---|---|---|---|
 | Done | Architecture comparison + ADR 0001; interim network snapshot | No | ✅ |
-| **A: offline software** | ✅ A0 foundations · ✅ A1 configuration · A2 blocklist pipeline · A3 filtering logic · A4 storage & maintenance · A5 monitoring · A6 Telegram · A7 backend · A8 dashboard · A9 offline integration rehearsal | **No** | ✅ A0 · ✅ A1 · next: A2/A3 (awaiting approval) |
+| **A: offline software** | ✅ A0 foundations · ✅ A1 configuration · ✅ A2 blocklist pipeline · A3 filtering logic · A4 storage & maintenance · A5 monitoring · A6 Telegram · A7 backend · A8 dashboard · A9 offline integration rehearsal | **No** | ✅ A0 · ✅ A1 · ✅ A2 · next: A3 (awaiting approval) |
 | B: pre-deployment audits | B1 Raspberry Pi audit · B2 Fastweb Seven network audit · B3 architecture re-validation | Read-only | — |
 | C: Pi deployment, isolated | C1 Pi-hole + Unbound install · C2 real provider adapter · C3 live pipeline/monitoring/alerts · C4 backend + dashboard · C5 backup/restore + rollback rehearsal | Pi only | ⛔ Not authorised |
 | D: network integration | D1 pilot devices · D2 device policies (G6) · D3 IPv6 + bypass · D4 network cutover · D5 soak + final docs | Yes, each change approved | ⛔ Not authorised |

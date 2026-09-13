@@ -1,1 +1,1 @@
-"""Persistence boundary. Only this package talks to SQLite."""
+"""Persistence boundary: SQLite (sqlite.py) and filesystem artifacts (artifacts.py)."""
