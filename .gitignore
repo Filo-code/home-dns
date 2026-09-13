@@ -1,0 +1,48 @@
+# ---- Secrets: never commit (CLAUDE.md §31) ----
+.env
+*.env
+!.env.example
+secrets/
+*.secret
+*.key
+*.pem
+*.p12
+*.pfx
+id_rsa*
+id_ed25519*
+*token*.txt
+
+# ---- Runtime data: lives on the Pi, not in Git ----
+data/*
+!data/README.md
+!data/.gitkeep
+backups/
+logs/
+*.log
+*.db
+*.db-wal
+*.db-shm
+*.sqlite
+*.sqlite3
+teleporter*.zip
+
+# ---- Generated blocklists (sources are tracked in config, not downloads) ----
+lists/**/*.downloaded
+lists/**/*.tmp
+
+# ---- Tooling ----
+node_modules/
+dist/
+build/
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+coverage/
+
+# ---- OS / editor ----
+.DS_Store
+Thumbs.db
+.vscode/*
+!.vscode/extensions.json
+.idea/

@@ -1,0 +1,33 @@
+# Device policy groups — TEMPLATE (not deployed)
+# Source: CLAUDE.md §20–§23. Group-to-blocklist assignments are decided in Phase 10.
+# Devices are NOT listed here yet; device inventory comes after the network audit.
+
+schema_version: 1
+
+groups:
+  - name: DEFAULT
+    description: Devices not yet assigned to a specific group.
+    filtering_intent: standard
+    blocklists: []        # decided in Phase 8/10
+  - name: PC
+    description: Windows PCs.
+    filtering_intent: standard
+    blocklists: []
+  - name: GAMING
+    description: Gaming PCs (e.g. main desktop). Must not break game launchers, anti-cheat, voice.
+    filtering_intent: conservative
+    blocklists: []
+  - name: MOBILE
+    description: Smartphones and iPads. Social networks must remain fully functional (CLAUDE.md §24).
+    filtering_intent: standard
+    blocklists: []
+  - name: SMART-TV
+    description: Smart TVs. Preserve streaming, DRM, casting, app stores, updates, authentication, CDNs (CLAUDE.md §22).
+    filtering_intent: conservative
+    blocklists: []
+  - name: XBOX
+    description: Xbox. Preserve Xbox Live, Microsoft account, multiplayer, Game Pass, Store, downloads, parties (CLAUDE.md §23).
+    filtering_intent: conservative
+    blocklists: []
+
+devices: []               # populated in Phase 10; identity strategy per ADR 0001 T4/G6

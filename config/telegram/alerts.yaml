@@ -1,0 +1,48 @@
+# Telegram alert routing — TEMPLATE (not deployed)
+# Events come from CLAUDE.md §29. Anti-spam values are intentionally null until Phase 13.
+# Bot token and chat id are secrets: set them in .env (TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID), never here.
+
+schema_version: 1
+
+anti_spam:
+  cooldown_seconds: null          # decided in Phase 13
+  rate_limit_per_hour: null       # decided in Phase 13
+  deduplicate: true               # CLAUDE.md §30
+  incident_state_tracking: true   # CLAUDE.md §30
+  send_recovery: true             # CLAUDE.md §30
+
+severities:
+  CRITICAL:
+    - dns_down
+    - dns_unavailable
+    - dnssec_failure
+    - storage_above_90
+    - filesystem_nearly_full
+    - dangerous_temperature
+    - backup_failure
+    - configuration_failure
+    - health_check_failure
+    - suspected_dns_bypass
+    - failed_deployment
+    - failed_update
+    - rollback
+    - protected_domain_tripwire_failure
+  WARNING:
+    - storage_above_70
+    - storage_above_80
+    - abnormal_dns_latency
+    - abnormal_query_growth
+    - high_cpu
+    - high_ram
+    - unexpected_service_restart
+    - blocklist_update_failure
+    - suspicious_blocklist
+    - protected_domain_warning
+    - missing_backup
+    - ipv6_bypass
+  INFO:
+    - backup_completed
+    - update_completed
+    - blocklist_updated
+    - reboot
+    - service_recovered

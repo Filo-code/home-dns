@@ -1,0 +1,19 @@
+# Storage policy — TEMPLATE (not deployed)
+# Thresholds and retention target come from CLAUDE.md §16. Paths are decided after the Raspberry Pi audit (§17).
+
+schema_version: 1
+
+disk_usage_thresholds_percent:
+  healthy_below: 70
+  warning_from: 70
+  auto_cleanup_from: 80
+  emergency_cleanup_and_alert_above: 90
+
+query_retention_days_target: 30   # "approximately 30 days — adjust if technically justified"
+
+paths:                             # proposed layout /opt/home-dns/{config,data,logs,backups}; confirm in Phase 12
+  base_dir: null
+  config_dir: null
+  data_dir: null
+  log_dir: null
+  backup_dir: null
