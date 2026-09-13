@@ -57,25 +57,15 @@ Custom dashboard backend ── Pi-hole official API (LAN only)
 
 ## Roadmap
 
-| Phase | Name | Status |
-|---:|---|---|
-| 1 | Raspberry Pi audit | ⏳ Blocked: waiting for Pi address and SSH access |
-| 2 | Network audit | 🟡 Interim snapshot done; final audit after Box Seven activation |
-| 3 | Architecture comparison | ✅ Done |
-| 4 | Architecture approval | 🟡 Approved for planning; gates G1–G5 pending |
-| 5 | DNS installation | ⛔ Not authorised |
-| 6 | Base DNS | — |
-| 7 | DNS testing | — |
-| 8 | Core filtering | — |
-| 9 | Italian filtering | — |
-| 10 | Device policies | — |
-| 11 | IPv6 + DNS bypass | — |
-| 12 | Maintenance | — |
-| 13 | Telegram | — |
-| 14 | Dashboard | — |
-| 15 | Testing | — |
-| 16 | Backup/restore | — |
-| 17 | Documentation | — |
+Revised 2026-09-13: offline software first, Pi and network integration last. Full detail and exit criteria: [docs/implementation-plan.md](docs/implementation-plan.md) (**approved 2026-09-13**).
+
+| Stage | Phases | Touches Pi / network? | Status |
+|---|---|---|---|
+| Done | Architecture comparison + ADR 0001; interim network snapshot | No | ✅ |
+| **A: offline software** | A0 foundations · A1 configuration · A2 blocklist pipeline · A3 filtering logic · A4 storage & maintenance · A5 monitoring · A6 Telegram · A7 backend · A8 dashboard · A9 offline integration rehearsal | **No** | 🔨 A0 in progress |
+| B: pre-deployment audits | B1 Raspberry Pi audit · B2 Fastweb Seven network audit · B3 architecture re-validation | Read-only | — |
+| C: Pi deployment, isolated | C1 Pi-hole + Unbound install · C2 real provider adapter · C3 live pipeline/monitoring/alerts · C4 backend + dashboard · C5 backup/restore + rollback rehearsal | Pi only | ⛔ Not authorised |
+| D: network integration | D1 pilot devices · D2 device policies (G6) · D3 IPv6 + bypass · D4 network cutover · D5 soak + final docs | Yes, each change approved | ⛔ Not authorised |
 
 ## Repository layout
 

@@ -6,10 +6,14 @@ ADRs are never deleted. A changed decision is recorded in a **new** ADR that sup
 | ADR | Title | Status |
 |---|---|---|
 | [0001](0001-dns-architecture.md) | DNS architecture: Pi-hole v6 + Unbound | Approved for implementation planning — pending Raspberry Pi audit and final Fastweb Seven network validation |
-| 0002 | Storage strategy | Not yet written (after Raspberry Pi audit) |
-| 0003 | IPv6 strategy | Not yet written (after Fastweb Seven audit) |
-| 0004 | Blocklist strategy | Not yet written (Phase 8) |
-| 0005 | Dashboard architecture | Not yet written (Phase 14) |
-| 0006 | Telegram alerting | Not yet written (Phase 13) |
+| 0002 | Software stack and tooling | Not yet written (A0) |
+| 0003 | Configuration model | Not yet written (A1) |
+| 0004 | Blocklist strategy | Not yet written (A2/A3) |
+| 0005 | Backend and dashboard architecture | Not yet written (A7) |
+| 0006 | Telegram alerting | Not yet written (A6) |
+| 0007 | Storage strategy | Not yet written (A4; paths finalised after B1) |
+| 0008 | IPv6 strategy | Not yet written (D3, after Fastweb Seven audit) |
+
+Planned numbers follow [../implementation-plan.md](../implementation-plan.md) and may shift if new decisions come up.
 
 Status values: `Proposed` · `Approved for implementation planning` · `Accepted` · `Under review` · `Superseded by NNNN` · `Rejected`.

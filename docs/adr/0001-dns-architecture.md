@@ -162,7 +162,7 @@ G1–G5 block installation. G6 can only be tested after installation, so it bloc
 1. When a trigger fires, record the evidence in the relevant audit document under `docs/audits/`.
 2. Set this ADR's status to **"Under review"**, with the trigger number and date. Do not delete the original reasoning.
 3. Re-run the affected parts of the decision matrix in `docs/architecture-comparison.md` with the new evidence.
-4. If the decision changes: write a **new ADR** that supersedes this one (for example `0007-dns-architecture-revision.md`), and set this ADR's status to **"Superseded by 0007"**.
+4. If the decision changes: write a **new ADR** that supersedes this one (next free number, for example `NNNN-dns-architecture-revision.md`), and set this ADR's status to **"Superseded by NNNN"**.
 5. If the decision stands: return this ADR to its previous status and add a dated note to the review log below.
 6. No production change may rely on a decision that is "Under review".
 
