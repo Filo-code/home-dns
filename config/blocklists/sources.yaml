@@ -1,0 +1,30 @@
+# Blocklist source catalog (ADR 0003). Only lists approved by the owner belong here.
+# Adding a list requires a documented reason and an explicit decision.
+#
+# A successful download (HTTP 200) is never sufficient: the A2 pipeline validates content,
+# size, format, parsing, normalization, deduplication, protected-domain tripwire, rule
+# syntax and sanity before any test deployment, and aborts on anything suspicious.
+schema_version: 1
+
+sources:
+  - id: hagezi-multi-pro
+    name: HaGeZi Multi PRO
+    homepage: https://github.com/hagezi/dns-blocklists
+    license: GPL-3.0
+    format: adblock
+    categories: [advertising, tracking, telemetry, malware, phishing]
+    urls:
+      primary: https://cdn.jsdelivr.net/gh/hagezi/dns-blocklists@latest/adblock/pro.txt
+      fallback: https://raw.githubusercontent.com/hagezi/dns-blocklists/main/adblock/pro.txt
+    update_interval_hours: 24   # reviewed in A2
+
+  - id: hagezi-tif-mini
+    name: HaGeZi Threat Intelligence Feeds (mini)
+    homepage: https://github.com/hagezi/dns-blocklists
+    license: GPL-3.0
+    format: adblock
+    categories: [malware, phishing]
+    urls:
+      primary: https://cdn.jsdelivr.net/gh/hagezi/dns-blocklists@latest/adblock/tif.mini.txt
+      fallback: https://raw.githubusercontent.com/hagezi/dns-blocklists/main/adblock/tif.mini.txt
+    update_interval_hours: 24   # reviewed in A2

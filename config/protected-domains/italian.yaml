@@ -1,0 +1,14 @@
+# Protected domains: italian (ADR 0003). Domains here must never be blocked.
+# A deny rule or regex that would block one of them is a configuration error, and the
+# A2 pipeline aborts any blocklist deployment that contains one.
+#
+# Entries are added in A3 from verified sources, one per item:
+#   - domain: example.com
+#     include_subdomains: true
+#     reason: why it must never be blocked
+#     source: where this was verified
+schema_version: 1
+category: italian
+description: Italian public services, banks and payment infrastructure (Poste Italiane, SPID, PagoPA, Agenzia delle Entrate, major banks).
+
+domains: []

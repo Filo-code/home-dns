@@ -29,7 +29,20 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Dates are ISO 
   - 90 % coverage gate
 - 2026-09-13 — Frontend skeleton (React + Vite + TypeScript, Italian UI) with a Vitest test; `Makefile` with setup/test/lint/check.
 
+### Added — A1 configuration architecture
+- 2026-09-13 — ADR 0003 (filtering configuration model) and technical-debt register (`docs/technical-debt.md`).
+- 2026-09-13 — `home_dns.core.domains`: domain normalization (IDNA, no wildcards/IPs/single labels) and subdomain matching.
+- 2026-09-13 — `home_dns.core.filtering`: groups, policies, blocklist sources (HTTPS primary/fallback), allow/deny/regex rules with `reason`, `author`, `created_at`, `groups`, `source`, optional `expires_at`, and protected domains. Cross-reference checks cover unknown refs, duplicates, allow/deny conflicts, deny-vs-protected and expiry.
+- 2026-09-13 — `home_dns.config.filtering` loader with one schema per file; `validate-config` reports the filtering summary and issues.
+- 2026-09-13 — Configuration files:
+  - `config/groups/groups.yaml` (6 groups)
+  - `config/policies/policies.yaml` (provisional)
+  - `config/blocklists/sources.yaml` (HaGeZi Multi PRO + TIF Mini)
+  - `config/rules/{allow,deny,regex}.yaml`
+  - `config/protected-domains/{italian,technology,infrastructure}.yaml` (empty until A3)
+
 ### Changed
+- 2026-09-13 — `groups.yaml` no longer holds devices; device assignments move to backend storage (A7).
 - 2026-09-13 — Removed `dashboard/backend/` and `dashboard/shared/`; the backend lives in `src/home_dns/api/`.
 - 2026-09-13 — `config/storage/storage.yaml` no longer defines paths; paths are application settings.
 - 2026-09-13 — `.env.example` uses `HOME_DNS_*` variable names.

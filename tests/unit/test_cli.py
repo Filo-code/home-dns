@@ -1,6 +1,7 @@
 import io
 import json
 from collections.abc import Callable
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -147,3 +148,79 @@ def test_serve_development_starts_uvicorn_on_configured_address(
     code, _, _ = _run("serve", "--config-dir", str(make_config_dir(DEV_PROFILE)))
     assert code == 0
     assert calls == [{"host": "127.0.0.1", "port": 8080}]
+
+
+# ------------------------------------------------------------------ A1: filtering config
+
+FIXED_NOW = datetime(2026, 9, 13, 12, 0, tzinfo=UTC)
+
+
+def _run_at(now: datetime, *argv: str) -> tuple[int, str, str]:
+    out, err = io.StringIO(), io.StringIO()
+    code = cli.main(list(argv), out=out, err=err, now=lambda: now)
+    return code, out.getvalue(), err.getvalue()
+
+
+def test_repository_filtering_config_is_reported() -> None:
+    code, out, _ = _run("validate-config")
+    assert code == 0
+    assert "groups=6" in out
+    assert "sources=2" in out
+    assert "no protected domains defined" in out
+
+
+def test_repository_config_fails_strict_until_protected_domains_exist() -> None:
+    assert _run("validate-config", "--strict")[0] == 1
+
+
+def test_filtering_schema_error_exits_2(make_config_dir: MakeConfigDir) -> None:
+    config_dir = make_config_dir(DEV_PROFILE, **{"groups__groups.yaml": "schema_version: 1\n"})
+    code, out, _ = _run("validate-config", "--config-dir", str(config_dir))
+    assert code == 2
+    assert "groups/groups.yaml" in out
+
+
+def test_missing_filtering_files_exit_2(make_config_dir: MakeConfigDir) -> None:
+    config_dir = make_config_dir(DEV_PROFILE, filtering=False)
+    code, out, _ = _run("validate-config", "--config-dir", str(config_dir), "--format", "json")
+    assert code == 2
+    assert "file not found" in json.loads(out)["filtering"]["error"]
+
+
+_EXPIRING_ALLOW = """\
+schema_version: 1
+rules:
+  - domain: tvstore.example
+    reason: TV store catalogue fails
+    author: owner
+    created_at: 2026-09-13
+    expires_at: 2026-09-20T12:00:00+00:00
+    groups: [SMART-TV]
+    source: manual troubleshooting
+"""
+
+
+def test_expiring_rule_is_active_then_reported_as_expired(make_config_dir: MakeConfigDir) -> None:
+    config_dir = make_config_dir(DEV_PROFILE, **{"rules__allow.yaml": _EXPIRING_ALLOW})
+    args = ("validate-config", "--config-dir", str(config_dir), "--format", "json")
+
+    code, out, _ = _run_at(FIXED_NOW, *args)
+    summary = json.loads(out)["filtering"]["summary"]
+    assert code == 0
+    assert summary["allow_rules"] == 1 and summary["rules_with_expiry"] == 1
+    assert summary["expired_rules"] == 0
+
+    code, out, _ = _run_at(datetime(2026, 9, 21, tzinfo=UTC), *args)
+    payload = json.loads(out)["filtering"]
+    assert code == 0
+    assert payload["summary"]["expired_rules"] == 1
+    assert any(i["level"] == "info" and "expired" in i["message"] for i in payload["issues"])
+
+
+def test_cross_reference_error_exits_2(make_config_dir: MakeConfigDir) -> None:
+    bad_allow = _EXPIRING_ALLOW.replace("[SMART-TV]", "[GHOST]")
+    config_dir = make_config_dir(DEV_PROFILE, **{"rules__allow.yaml": bad_allow})
+    code, out, _ = _run_at(FIXED_NOW, "validate-config", "--config-dir", str(config_dir))
+    assert code == 2
+    assert "unknown group 'GHOST'" in out
+    assert "Result: NOT READY" in out

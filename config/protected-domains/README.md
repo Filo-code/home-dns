@@ -1,13 +1,15 @@
-# Protected domains (planned)
+# Protected domains
 
-> **Status: not written.** Domain entries are added and verified in Phase 8. **No domains are committed yet**, to avoid unverified assumptions.
+One category per file: `<category>.yaml`, and the `category:` value must equal the file name. Schema and rules: [ADR 0003](../../docs/adr/0003-configuration-model.md).
 
-Purpose: before any blocklist deployment, every candidate list is scanned against these domains. **Any match aborts the deployment**, keeps the previous working list, and sends a Telegram alert (CLAUDE.md §19).
+> **Status:** schema implemented (A1). **Entries are added in A3 from verified sources.** Until then `validate-config` warns that the tripwire has nothing to check.
 
-Planned categories (one file per category, one domain per line, with a comment explaining why it is protected):
+Uses:
+- `validate-config` rejects any active deny rule or deny regex that would block a protected domain.
+- The A2 pipeline aborts a blocklist deployment that contains one, keeps the previous working list, and alerts.
 
-| File (planned) | Scope |
+| File | Scope |
 |---|---|
-| `italian.txt` | Poste Italiane, SPID, PagoPA, Agenzia delle Entrate, major Italian banks, payment infrastructure |
-| `technology.txt` | Google, Microsoft, Apple, Amazon, Steam, Xbox, Netflix, Prime Video, Disney+, YouTube, Twitch |
-| `infrastructure.txt` | Major CDNs, authentication services, OS updates, certificate infrastructure (OCSP/CRL), cloud, DNS infrastructure |
+| `italian.yaml` | Poste Italiane, SPID, PagoPA, Agenzia delle Entrate, major Italian banks, payment infrastructure |
+| `technology.yaml` | Google, Microsoft, Apple, Amazon, Steam, Xbox, Netflix, Prime Video, Disney+, YouTube, Twitch |
+| `infrastructure.yaml` | Major CDNs, authentication, OS updates, certificate infrastructure (OCSP/CRL), cloud, DNS infrastructure |

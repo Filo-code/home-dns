@@ -1,0 +1,15 @@
+# Regular-expression rules (ADR 0003). action: allow | deny.
+# Patterns are validated for syntax and must not match the empty string. The portable
+# POSIX-ERE subset required by Pi-hole is defined and enforced in A3.
+#
+# Example (not active):
+#   - pattern: ^ads?[0-9]*\.example\.com$
+#     action: deny
+#     reason: numbered ad hosts
+#     author: owner
+#     created_at: 2026-09-13
+#     groups: ["*"]
+#     source: manual
+schema_version: 1
+
+rules: []

@@ -1,8 +1,8 @@
-# Policies (planned)
+# Policies
 
-> **Status: not written.** Filled in Phase 10.
+`policies.yaml` defines which blocklist sources each policy uses. Each group in `config/groups/groups.yaml` points at exactly one policy. Schema: [ADR 0003](../../docs/adr/0003-configuration-model.md).
 
-Each group from `config/groups/groups.yaml` gets a policy definition: which lists apply, allowlist exceptions, and the reason for each exception.
+> **Provisional:** `standard` = Multi PRO + TIF Mini, `conservative` = TIF Mini only. A3 reviews these assignments with table-driven tests before anything is deployed.
 
 Hard rules from CLAUDE.md, whatever the policy:
 - **YouTube:** never block `googlevideo.com` or YouTube/Google video infrastructure (§25).

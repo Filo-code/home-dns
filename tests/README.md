@@ -4,7 +4,7 @@ Automated tests (CLAUDE.md §42–§43). Run with `make test`. Rules: [../docs/d
 
 | Directory | Covers | Since |
 |---|---|---|
-| `unit/` | config (placeholders, loader, readiness), core models, providers, storage, bootstrap, CLI | A0 |
+| `unit/` | config (placeholders, loader, readiness, filtering loader), core (models, domains, filtering checks), providers, storage, bootstrap, CLI | A0–A1 |
 | `contract/` | `DnsProvider` contract: the same tests for every provider (mock now, Pi-hole v6 in C2) | A0 |
 | `api/` | backend HTTP API | A0 |
 | `architecture/` | package import boundaries; no real IPs/MACs in code or config | A0 |

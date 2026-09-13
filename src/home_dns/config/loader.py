@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import os
 import re
-from collections.abc import Iterator, Mapping
+from collections.abc import Iterable, Iterator, Mapping
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -149,15 +149,16 @@ class ConfigFileScan:
     error: str | None = None
 
 
-def scan_config_tree(config_dir: Path) -> list[ConfigFileScan]:
-    """Check every non-profile YAML file under config/ for syntax and hygiene.
+def scan_config_tree(config_dir: Path, *, exclude: Iterable[Path] = ()) -> list[ConfigFileScan]:
+    """Check YAML files under config/ that no schema owns yet, for syntax and hygiene.
 
-    Domain schemas (groups, policies, ...) are validated from A1 onwards.
+    Application profiles and files in ``exclude`` (validated by their own loaders) are skipped.
     """
     results: list[ConfigFileScan] = []
     profile_dir = config_dir / APP_PROFILE_DIR
+    skipped = {p.resolve() for p in exclude}
     for path in sorted([*config_dir.rglob("*.yaml"), *config_dir.rglob("*.yml")]):
-        if path.is_relative_to(profile_dir):
+        if path.is_relative_to(profile_dir) or path.resolve() in skipped:
             continue
         try:
             data = read_yaml_mapping(path)

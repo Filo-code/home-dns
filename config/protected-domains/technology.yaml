@@ -1,0 +1,14 @@
+# Protected domains: technology (ADR 0003). Domains here must never be blocked.
+# A deny rule or regex that would block one of them is a configuration error, and the
+# A2 pipeline aborts any blocklist deployment that contains one.
+#
+# Entries are added in A3 from verified sources, one per item:
+#   - domain: example.com
+#     include_subdomains: true
+#     reason: why it must never be blocked
+#     source: where this was verified
+schema_version: 1
+category: technology
+description: Major technology and streaming platforms (Google, Microsoft, Apple, Amazon, Steam, Xbox, Netflix, Prime Video, Disney+, YouTube, Twitch).
+
+domains: []

@@ -6,8 +6,8 @@ Blocklist and allowlist **sources and metadata** by category. Downloaded list co
 
 | Directory | Scope | Initial candidates |
 |---|---|---|
-| `core/` | Ads, trackers, general protection | HaGeZi Multi PRO (availability confirmed 2026-09-13) |
-| `malware/`, `phishing/` | Threat intelligence | HaGeZi TIF Mini (availability confirmed 2026-09-13) |
+| `core/` | Ads, trackers, general protection | HaGeZi Multi PRO: catalogued in `config/blocklists/sources.yaml` |
+| `malware/`, `phishing/` | Threat intelligence | HaGeZi TIF Mini: catalogued in `config/blocklists/sources.yaml` |
 | `italian/` | Italian ads/trackers | To be researched |
 | `telemetry/` | Telemetry | To be researched; high false-positive risk for TV/Xbox |
 | `gambling/`, `adult/` | Content categories | To be researched; per-group only |

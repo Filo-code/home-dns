@@ -47,7 +47,7 @@ ADR 0001 gates G1–G5 still block Stage C. Gate G6 still blocks device-policy r
   - local check script that mirrors CI
 - **Exit:** `make test` passes on the skeleton; placeholder detection has tests.
 
-### A1 — Configuration architecture
+### A1 — Configuration architecture ✅ (done 2026-09-13, see [ADR 0003](adr/0003-configuration-model.md))
 - **Goal:** one validated, provider-neutral model of what the system should do.
 - **Deliverables:** schemas, loader and a `validate-config` CLI covering:
   - device groups (DEFAULT, PC, GAMING, MOBILE, SMART-TV, XBOX)
@@ -66,7 +66,22 @@ ADR 0001 gates G1–G5 still block Stage C. Gate G6 still blocks device-policy r
 
 ### A2 — Blocklist pipeline
 - **Goal:** turn untrusted list sources into validated, versioned, deployable artifacts that can be rolled back.
-- **Stages:** download → validate → normalize → deduplicate → syntax check → protected-domain tripwire → sanity checks → stage → test deployment (mock provider) → activate → health check → rollback on failure.
+- **Stages (owner-approved order, 2026-09-13):**
+  1. download success
+  2. HTTP/content correctness
+  3. reasonable file size
+  4. expected content format
+  5. parsing
+  6. normalization
+  7. deduplication
+  8. protected-domain tripwire
+  9. syntax/rule validation
+  10. sanity checks
+  11. test deployment (mock provider)
+  12. health check
+  13. activation
+
+  Any suspicious or invalid result aborts before deployment and keeps the previous artifact. HTTP 200 alone is never sufficient. Sources: jsDelivr primary, `raw.githubusercontent.com` fallback.
 - **Deliverables:**
   - pipeline CLI, `--dry-run` by default
   - content-addressed artifact store (current / previous / staged)

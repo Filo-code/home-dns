@@ -1,0 +1,17 @@
+# Manual deny rules (ADR 0003). Exact domains; set include_subdomains to cover children.
+# Every rule needs: reason, author, created_at, groups ("*" = all groups), source.
+# expires_at is optional; use it for temporary exceptions so they cannot become permanent.
+# Expired rules are ignored automatically and reported by validate-config.
+#
+# Example (not active):
+#   - domain: example.com
+#     include_subdomains: false
+#     reason: Smart TV app store fails to load catalogue
+#     author: owner
+#     created_at: 2026-09-13
+#     expires_at: 2026-09-20T00:00:00+02:00
+#     groups: [SMART-TV]
+#     source: manual troubleshooting
+schema_version: 1
+
+rules: []

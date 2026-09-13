@@ -1,0 +1,19 @@
+# Filtering policies (ADR 0003). A group points at exactly one policy.
+#
+# PROVISIONAL: which lists each policy uses is reviewed and proven with tests in A3
+# (filtering logic). Nothing here is deployed.
+schema_version: 1
+
+policies:
+  - id: standard
+    description: General protection for PCs, phones, tablets and unassigned devices.
+    blocklists:
+      - hagezi-multi-pro
+      - hagezi-tif-mini
+
+  - id: conservative
+    description: >-
+      Security-only baseline for Smart TVs, Xbox and gaming PCs, to avoid breaking streaming,
+      DRM, multiplayer and stores. A3 decides whether light ad/tracker blocking is safe here.
+    blocklists:
+      - hagezi-tif-mini

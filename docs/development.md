@@ -56,6 +56,14 @@ These rules are enforced by `tests/architecture/test_boundaries.py`. Full specif
   - Secret-like keys in any YAML under `config/` make loading fail.
   - The application never reads `.env`. To use one locally: `set -a; source .env; set +a`.
 
+### Filtering configuration (A1)
+
+- **Files:** groups, policies, blocklist sources, allow/deny/regex rules and protected domains are validated by `home-dns validate-config`. See [ADR 0003](adr/0003-configuration-model.md).
+- **Adding a group:** add an entry to `config/groups/groups.yaml`; no code change.
+- **Temporary exceptions:** give the rule an `expires_at` with a timezone, e.g. `2026-09-20T00:00:00+02:00`. After that moment the rule is ignored and reported as expired.
+- **Exit code 2:** schema errors and cross-reference errors (unknown group, conflicting rules, a deny rule touching a protected domain).
+- **`--strict`:** turns warnings (currently: no protected domains yet) into exit code 1.
+
 ### Placeholders
 
 | Token | Meaning |

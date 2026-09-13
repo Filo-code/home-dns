@@ -1,33 +1,28 @@
-# Device policy groups — TEMPLATE (not deployed)
-# Source: CLAUDE.md §20–§23. Group-to-blocklist assignments are decided in Phase 10.
-# Devices are NOT listed here yet; device inventory comes after the network audit.
-
+# Device policy groups (ADR 0003).
+#
+# Adding a group later = add one entry here that points at a policy. No code changes.
+# Group ids: upper-case words joined by "-". DEFAULT is required: unassigned devices use it.
+#
+# Device-to-group assignments are NOT stored here. They live in backend storage (A7), so
+# the dashboard can change them and no real network identifiers enter the repository.
 schema_version: 1
 
 groups:
-  - name: DEFAULT
+  - id: DEFAULT
     description: Devices not yet assigned to a specific group.
-    filtering_intent: standard
-    blocklists: []        # decided in Phase 8/10
-  - name: PC
+    policy: standard
+  - id: PC
     description: Windows PCs.
-    filtering_intent: standard
-    blocklists: []
-  - name: GAMING
-    description: Gaming PCs (e.g. main desktop). Must not break game launchers, anti-cheat, voice.
-    filtering_intent: conservative
-    blocklists: []
-  - name: MOBILE
-    description: Smartphones and iPads. Social networks must remain fully functional (CLAUDE.md §24).
-    filtering_intent: standard
-    blocklists: []
-  - name: SMART-TV
-    description: Smart TVs. Preserve streaming, DRM, casting, app stores, updates, authentication, CDNs (CLAUDE.md §22).
-    filtering_intent: conservative
-    blocklists: []
-  - name: XBOX
-    description: Xbox. Preserve Xbox Live, Microsoft account, multiplayer, Game Pass, Store, downloads, parties (CLAUDE.md §23).
-    filtering_intent: conservative
-    blocklists: []
-
-devices: []               # populated in Phase 10; identity strategy per ADR 0001 T4/G6
+    policy: standard
+  - id: GAMING
+    description: Gaming PCs. Must not break launchers, anti-cheat, voice chat or downloads.
+    policy: conservative
+  - id: MOBILE
+    description: Smartphones and iPads. Social networks must remain fully functional.
+    policy: standard
+  - id: SMART-TV
+    description: Smart TVs. Preserve streaming, DRM, casting, app stores, updates and CDNs.
+    policy: conservative
+  - id: XBOX
+    description: Xbox. Preserve Xbox Live, Microsoft account, multiplayer, Game Pass, Store, parties.
+    policy: conservative
