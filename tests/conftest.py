@@ -167,14 +167,31 @@ restart_budget:
 """,
 }
 
+# Minimal valid Telegram alerting configuration (A6). Same shape as the repo's own file.
+TELEGRAM_FILES: dict[str, str] = {
+    "telegram__alerts.yaml": """\
+schema_version: 1
+anti_spam:
+  cooldown_seconds: 300
+  rate_limit_per_hour: 20
+  deduplicate: true
+  incident_state_tracking: true
+  send_recovery: true
+severities:
+  CRITICAL: [dns_down, storage_above_90, failed_update]
+  WARNING: [storage_above_70, storage_above_80, blocklist_update_failure]
+  INFO: [service_recovered, notify_test]
+""",
+}
+
 
 @pytest.fixture
 def make_config_dir(tmp_path: Path) -> Callable[..., Path]:
-    """Create <tmp>/config with app/<env>.yaml, valid filtering/storage/monitoring sets and
-    optional extras.
+    """Create <tmp>/config with app/<env>.yaml, valid filtering/storage/monitoring/telegram sets
+    and optional extras.
 
-    Pass ``filtering=False`` / ``storage=False`` / ``monitoring=False`` to omit those default
-    file sets; extra files override defaults of any set.
+    Pass ``filtering=False`` / ``storage=False`` / ``monitoring=False`` / ``telegram=False`` to
+    omit those default file sets; extra files override defaults of any set.
     """
 
     def factory(
@@ -184,6 +201,7 @@ def make_config_dir(tmp_path: Path) -> Callable[..., Path]:
         filtering: bool = True,
         storage: bool = True,
         monitoring: bool = True,
+        telegram: bool = True,
         **extra_files: str,
     ) -> Path:
         config_dir = tmp_path / "config"
@@ -193,6 +211,7 @@ def make_config_dir(tmp_path: Path) -> Callable[..., Path]:
             **(FILTERING_FILES if filtering else {}),
             **(STORAGE_FILES if storage else {}),
             **(MONITORING_FILES if monitoring else {}),
+            **(TELEGRAM_FILES if telegram else {}),
             **extra_files,
         }
         for relative, text in files.items():

@@ -43,6 +43,18 @@ FORBIDDEN: dict[str, set[str]] = {
         "yaml",
         "uvicorn",
     },
+    "notify": {
+        "home_dns.config",
+        "home_dns.providers",
+        "home_dns.storage",
+        "home_dns.api",
+        "home_dns.bootstrap",
+        "home_dns.cli",
+        "fastapi",
+        "sqlite3",
+        "yaml",
+        "uvicorn",
+    },
     "storage": {
         "home_dns.config",
         "home_dns.providers",

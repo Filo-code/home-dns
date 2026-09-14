@@ -1,12 +1,16 @@
 # Telegram alert routing — TEMPLATE (not deployed)
-# Events come from CLAUDE.md §29. Anti-spam values are intentionally null until Phase 13.
+# Events come from CLAUDE.md §29. Anti-spam values approved by the owner 2026-09-14 (A6);
+# see docs/specs/a6-telegram-alerting.md §4 — this is a second, global guard on top of
+# A5's own per-check IncidentPolicy.cooldown_seconds, not a replacement for it.
 # Bot token and chat id are secrets: set them in .env (TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID), never here.
+# Message language: Italian (owner decision, 2026-09-14, A6). A one-time pick baked into
+# core/notify.py's templates, not a runtime setting — see docs/specs/a6-telegram-alerting.md §3.
 
 schema_version: 1
 
 anti_spam:
-  cooldown_seconds: null          # decided in Phase 13
-  rate_limit_per_hour: null       # decided in Phase 13
+  cooldown_seconds: 300           # per (severity, event) key; null = no limit
+  rate_limit_per_hour: 20         # total sends across all keys; null = no limit
   deduplicate: true               # CLAUDE.md §30
   incident_state_tracking: true   # CLAUDE.md §30
   send_recovery: true             # CLAUDE.md §30

@@ -1,3 +1,4 @@
+import argparse
 import io
 import json
 import sqlite3
@@ -806,3 +807,98 @@ def test_blocklists_update_escalates_after_three_consecutive_kept_previous(
 
     code, out, _ = _bl(config_dir, "update", "--apply", "--source", "list-a", fetcher=empty)
     assert code == 1 and "[critical] failed_update" not in out  # counter reset, back to 1st
+
+
+# --------------------------------------------------------------------------- A6: notify commands
+
+
+def _notify_cmd(config_dir: Path, *argv: str) -> tuple[int, str, str]:
+    out, err = io.StringIO(), io.StringIO()
+    code = cli.main(
+        ["notify", *argv, "--config-dir", str(config_dir)], out=out, err=err, now=lambda: FIXED_NOW
+    )
+    return code, out.getvalue(), err.getvalue()
+
+
+def test_notify_test_is_dry_run_by_default(make_config_dir: MakeConfigDir) -> None:
+    config_dir = make_config_dir(DEV_PROFILE)
+    code, out, _ = _notify_cmd(config_dir, "test")
+    assert code == 0
+    assert "sent=False" in out and "(dry-run)" in out
+
+
+def test_notify_test_apply_sends_via_default_mock_notifier(make_config_dir: MakeConfigDir) -> None:
+    config_dir = make_config_dir(DEV_PROFILE)
+    code, out, _ = _notify_cmd(config_dir, "test", "--apply")
+    assert code == 0
+    assert "mock: sent=True" in out
+    assert "(dry-run)" not in out
+
+
+def test_notify_test_apply_dry_run_does_not_persist_anti_spam_state(
+    make_config_dir: MakeConfigDir,
+) -> None:
+    config_dir = make_config_dir(DEV_PROFILE)
+    _notify_cmd(config_dir, "test")
+    assert not (config_dir.parent / ".local" / "data" / "notify").exists()
+
+
+def test_notify_test_second_apply_within_cooldown_is_suppressed(
+    make_config_dir: MakeConfigDir,
+) -> None:
+    config_dir = make_config_dir(DEV_PROFILE)
+    code, out, _ = _notify_cmd(config_dir, "test", "--apply")
+    assert code == 0 and "mock: sent=True" in out
+
+    code, out, _ = _notify_cmd(config_dir, "test", "--apply")
+    assert code == 0 and "suppressed by anti-spam policy" in out
+
+
+def test_notify_refused_in_production(repo_config_dir: Path) -> None:
+    out, err = io.StringIO(), io.StringIO()
+    code = cli.main(
+        [
+            "notify",
+            "test",
+            "--env",
+            "production",
+            "--profile",
+            str(repo_config_dir / "app" / "production.example.yaml"),
+        ],
+        out=out,
+        err=err,
+    )
+    assert code == 1 and "development-only" in err.getvalue()
+
+
+def test_notify_config_load_error_exits_2(make_config_dir: MakeConfigDir) -> None:
+    config_dir = make_config_dir(DEV_PROFILE, **{"telegram__alerts.yaml": "schema_version: 2\n"})
+    code, _, err = _notify_cmd(config_dir, "test")
+    assert code == 2 and "configuration error" in err
+
+
+def test_notify_unresolved_data_dir_is_refused(make_config_dir: MakeConfigDir) -> None:
+    text = DEV_PROFILE.replace("data_dir: .local/data", 'data_dir: "<<AUDIT:paths.data_dir>>"')
+    code, _, err = _notify_cmd(make_config_dir(text), "test")
+    assert code == 1 and "unresolved" in err
+
+
+def test_notify_telegram_kind_without_secrets_is_refused(make_config_dir: MakeConfigDir) -> None:
+    text = DEV_PROFILE.replace("dns_provider:", "notifier:\n  kind: telegram\ndns_provider:")
+    code, _, err = _notify_cmd(make_config_dir(text), "test", "--apply")
+    assert code == 1 and "TELEGRAM_BOT_TOKEN" in err
+
+
+def test_notify_telegram_kind_with_secrets_builds_a_telegram_notifier(
+    make_config_dir: MakeConfigDir, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("TELEGRAM_BOT_TOKEN", "abc123")
+    monkeypatch.setenv("TELEGRAM_CHAT_ID", "999")
+    text = DEV_PROFILE.replace("dns_provider:", "notifier:\n  kind: telegram\ndns_provider:")
+    config_dir = make_config_dir(text)
+    config, _ = cli._load(argparse.Namespace(env=None, config_dir=config_dir, profile=None))
+    notifier = cli._build_notifier(
+        config, config_dir.parent / ".local" / "data", now=lambda: FIXED_NOW
+    )
+    assert notifier.name == "telegram"
+    assert "abc123" not in repr(notifier)

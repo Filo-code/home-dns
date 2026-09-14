@@ -32,6 +32,12 @@ class ProviderKind(StrEnum):
     PIHOLE_V6 = "pihole_v6"
 
 
+class NotifierKind(StrEnum):
+    MOCK = "mock"
+    FILE = "file"
+    TELEGRAM = "telegram"
+
+
 class _Section(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
@@ -70,6 +76,12 @@ class ApiSettings(_Section):
     port: Deferred[PortNumber]
 
 
+class NotifierSettings(_Section):
+    """Defaults to 'mock' (never sends anything real) so existing profiles need no changes."""
+
+    kind: NotifierKind = NotifierKind.MOCK
+
+
 class AppSettings(BaseSettings):
     """Settings from the profile file (passed as init kwargs) overridden by HOME_DNS_* env."""
 
@@ -83,6 +95,7 @@ class AppSettings(BaseSettings):
     paths: PathsSettings
     dns_provider: DnsProviderSettings
     api: ApiSettings
+    notifier: NotifierSettings = Field(default_factory=NotifierSettings)
 
     @classmethod
     def settings_customise_sources(
@@ -103,6 +116,10 @@ class SecretSettings(BaseSettings):
     model_config = SettingsConfigDict(env_prefix=ENV_PREFIX, extra="ignore", frozen=True)
 
     pihole_app_password: SecretStr | None = None
+    telegram_bot_token: SecretStr | None = Field(
+        default=None, validation_alias="TELEGRAM_BOT_TOKEN"
+    )
+    telegram_chat_id: str | None = Field(default=None, validation_alias="TELEGRAM_CHAT_ID")
 
     @classmethod
     def settings_customise_sources(

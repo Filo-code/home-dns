@@ -40,8 +40,13 @@ from home_dns.config.monitoring import (
 )
 from home_dns.config.placeholders import Placeholder
 from home_dns.config.readiness import ReadinessReport, evaluate_readiness
-from home_dns.config.settings import Environment
+from home_dns.config.settings import Environment, NotifierKind
 from home_dns.config.storage import StorageConfig, load_storage_config, storage_config_files
+from home_dns.config.telegram import (
+    TelegramAlertsConfig,
+    load_telegram_config,
+    telegram_config_files,
+)
 from home_dns.core.blocklists import ArtifactFormatError, BlockEntry, parse_artifact
 from home_dns.core.domains import InvalidDomainError
 from home_dns.core.monitoring import (
@@ -52,8 +57,13 @@ from home_dns.core.monitoring import (
     advance_incident,
     freshness_severity,
 )
+from home_dns.core.notify import AlertMessage, format_message, should_send
 from home_dns.core.policy import PolicyEngine, UnknownGroupError
 from home_dns.core.storage import StorageReport, ThresholdState, plan_cleanup
+from home_dns.notify.base import Notifier, NotifierConfigError, OutgoingMessage
+from home_dns.notify.file import FileNotifier
+from home_dns.notify.mock import MockNotifier
+from home_dns.notify.telegram import TelegramNotifier
 from home_dns.pipeline.blocklists import (
     Alert,
     AlertSeverity,
@@ -77,6 +87,7 @@ from home_dns.storage.backup import (
 from home_dns.storage.cleanup import execute_cleanup
 from home_dns.storage.disk import DiskUsageProvider, SystemDiskUsage
 from home_dns.storage.monitoring import MonitoringStore
+from home_dns.storage.notify import NotifyStore
 from home_dns.storage.report import build_storage_report
 
 EXIT_OK = 0
@@ -182,6 +193,16 @@ def _build_parser() -> argparse.ArgumentParser:
         "--apply", action="store_true", help="persist the observed incident state"
     )
     mstatus.add_argument("--format", choices=["text", "json"], default="text")
+
+    notify = commands.add_parser("notify", help="alerting (development only)")
+    notify_actions = notify.add_subparsers(dest="notify_command", required=True)
+    ntest = notify_actions.add_parser(
+        "test", help="send one INFO test message via the configured notifier"
+    )
+    _add_config_arguments(ntest)
+    ntest.add_argument(
+        "--apply", action="store_true", help="actually send (never automatic; never default)"
+    )
     return parser
 
 
@@ -205,6 +226,8 @@ class _Outcome:
     storage_error: str | None = None
     monitoring: MonitoringConfig | None = None
     monitoring_error: str | None = None
+    telegram: TelegramAlertsConfig | None = None
+    telegram_error: str | None = None
 
     @property
     def filtering_ok(self) -> bool:
@@ -221,12 +244,17 @@ class _Outcome:
         return self.monitoring_error is None and self.monitoring is not None
 
     @property
+    def telegram_ok(self) -> bool:
+        return self.telegram_error is None and self.telegram is not None
+
+    @property
     def ready(self) -> bool:
         return (
             self.report.is_ready(strict=self.strict)
             and self.filtering_ok
             and self.storage_ok
             and self.monitoring_ok
+            and self.telegram_ok
         )
 
     @property
@@ -238,6 +266,7 @@ class _Outcome:
             broken_filtering
             or self.storage_error is not None
             or self.monitoring_error is not None
+            or self.telegram_error is not None
             or any(scan.error for scan in self.scans)
         )
 
@@ -312,6 +341,18 @@ def _print_text(outcome: _Outcome, out: TextIO) -> None:
             file=out,
         )
 
+    print("\nTelegram alerting configuration:", file=out)
+    if outcome.telegram_error is not None:
+        print(f"  error   {outcome.telegram_error}", file=out)
+    elif outcome.telegram is not None:
+        a = outcome.telegram.anti_spam
+        print(
+            f"  anti_spam: cooldown={a.cooldown_seconds!r}s rate_limit={a.rate_limit_per_hour!r}/h"
+            f" send_recovery={outcome.telegram.send_recovery}",
+            file=out,
+        )
+        print(f"  events routed: {len(outcome.telegram.event_severity)}", file=out)
+
     print("\nOther config files (no schema yet):", file=out)
     for scan in outcome.scans:
         if scan.error:
@@ -328,6 +369,7 @@ def _print_text(outcome: _Outcome, out: TextIO) -> None:
         + (outcome.filtering_error is not None)
         + (outcome.storage_error is not None)
         + (outcome.monitoring_error is not None)
+        + (outcome.telegram_error is not None)
     )
     warnings = len(report.warnings) + filtering_warnings
     verdict = "READY" if outcome.ready else "NOT READY"
@@ -372,6 +414,16 @@ def _print_json(outcome: _Outcome, out: TextIO) -> None:
                 outcome.monitoring.restart_budget.model_dump() if outcome.monitoring else None
             ),
         },
+        "telegram": {
+            "error": outcome.telegram_error,
+            "anti_spam": (
+                outcome.telegram.anti_spam.model_dump() if outcome.telegram else None
+            ),
+            "send_recovery": (outcome.telegram.send_recovery if outcome.telegram else None),
+            "events_routed": (
+                len(outcome.telegram.event_severity) if outcome.telegram else None
+            ),
+        },
         "config_files": [
             {"path": str(s.path), "placeholders": list(s.placeholders), "error": s.error}
             for s in outcome.scans
@@ -412,10 +464,18 @@ def _validate_config(
     except ConfigLoadError as exc:
         monitoring_error = str(exc)
 
+    telegram: TelegramAlertsConfig | None = None
+    telegram_error: str | None = None
+    try:
+        telegram = load_telegram_config(config_dir)
+    except ConfigLoadError as exc:
+        telegram_error = str(exc)
+
     exclude = [
         *filtering_config_files(config_dir),
         *storage_config_files(config_dir),
         *monitoring_config_files(config_dir),
+        *telegram_config_files(config_dir),
     ]
     scans = scan_config_tree(config_dir, exclude=exclude) if config_dir.is_dir() else []
 
@@ -430,6 +490,8 @@ def _validate_config(
         storage_error,
         monitoring,
         monitoring_error,
+        telegram,
+        telegram_error,
     )
     (_print_json if args.format == "json" else _print_text)(outcome, out)
     if outcome.load_failed:
@@ -1016,6 +1078,80 @@ def _monitoring(
     return EXIT_LOAD_ERROR  # unreachable: argparse enforces monitoring_command choices
 
 
+def _build_notifier(
+    config: LoadedConfig, data_dir: Path, *, now: Callable[[], datetime]
+) -> Notifier:
+    kind = config.settings.notifier.kind
+    if kind is NotifierKind.MOCK:
+        return MockNotifier()
+    if kind is NotifierKind.FILE:
+        return FileNotifier(data_dir / "notify" / "outbox.jsonl", now=now)
+    token = config.secrets.telegram_bot_token
+    chat_id = config.secrets.telegram_chat_id
+    if token is None or chat_id is None:
+        raise NotifierConfigError(
+            "notifier.kind is 'telegram' but TELEGRAM_BOT_TOKEN / TELEGRAM_CHAT_ID are not set"
+        )
+    return TelegramNotifier(bot_token=token.get_secret_value(), chat_id=chat_id)
+
+
+def _notify(
+    args: argparse.Namespace,
+    out: TextIO,
+    err: TextIO,
+    now: Callable[[], datetime],
+    notifier: Notifier | None = None,
+) -> int:
+    try:
+        config, config_dir = _load(args)
+        telegram_config = load_telegram_config(config_dir)
+    except ConfigLoadError as exc:
+        print(f"configuration error: {exc}", file=err)
+        return EXIT_LOAD_ERROR
+    if config.environment is Environment.PRODUCTION:
+        print(
+            "notify commands are development-only until production activation (phase C3)",
+            file=err,
+        )
+        return EXIT_NOT_READY
+    paths = _resolved_paths(config)
+    if paths is None:
+        print("one or more paths.* settings are unresolved placeholders", file=err)
+        return EXIT_NOT_READY
+    data_dir = paths["data_dir"]
+
+    if args.notify_command == "test":
+        try:
+            active_notifier = notifier or _build_notifier(config, data_dir, now=now)
+        except NotifierConfigError as exc:
+            print(f"notifier refused: {exc}", file=err)
+            return EXIT_NOT_READY
+
+        store = NotifyStore(data_dir / "notify")
+        state = store.load()
+        alert = AlertMessage(
+            severity="info", event="notify_test", detail="Messaggio di prova da home-dns."
+        )
+        key = f"{alert.severity}:{alert.event}"
+        new_state, allowed = should_send(
+            state, key, policy=telegram_config.anti_spam, now=now()
+        )
+        if not allowed:
+            print("suppressed by anti-spam policy", file=out)
+            return EXIT_OK
+
+        message = OutgoingMessage(
+            severity=alert.severity, event=alert.event, text=format_message(alert)
+        )
+        result = active_notifier.send(message, dry_run=not args.apply)
+        store.save(new_state, dry_run=not args.apply)
+        suffix = "" if args.apply else " (dry-run)"
+        print(f"{active_notifier.name}: sent={result.sent} — {result.detail}{suffix}", file=out)
+        return EXIT_OK
+
+    return EXIT_LOAD_ERROR  # unreachable: argparse enforces notify_command choices
+
+
 def main(
     argv: Sequence[str] | None = None,
     *,
@@ -1024,6 +1160,7 @@ def main(
     now: Callable[[], datetime] | None = None,
     fetcher: Fetcher | None = None,
     disk: DiskUsageProvider | None = None,
+    notifier: Notifier | None = None,
 ) -> int:
     out = out or sys.stdout
     err = err or sys.stderr
@@ -1039,6 +1176,8 @@ def main(
         return _storage(args, out, err, clock, disk)
     if args.command == "monitoring":
         return _monitoring(args, out, err, clock, disk)
+    if args.command == "notify":
+        return _notify(args, out, err, clock, notifier)
     return _serve(args, err)
 
 
