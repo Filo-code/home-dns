@@ -5,6 +5,12 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Dates are ISO 
 
 ## [Unreleased]
 
+### Added — A9 offline integration rehearsal
+- 2026-09-14 — `tests/integration/test_a9_rehearsal.py`: a permanent end-to-end regression test driving the real CLI through pipeline -> mock provider -> monitoring incidents -> Telegram (mock, dry-run) -> dashboard backend -> dashboard API, on one continuous on-disk state.
+- 2026-09-14 — A9 design and "ready for Stage B" checklist (`docs/specs/a9-integration-rehearsal.md`).
+- 2026-09-14 — Point-in-time security review (`docs/audits/2026-09-14-a9-security-review.md`); TD-016 recorded (no automated Python dependency-vulnerability scan yet).
+- 2026-09-14 — Documentation pass: `docs/implementation-plan.md` A5-A9 marked done; `docs/devices.md`, `docs/monitoring.md`, `docs/telegram-alerts.md`, `docs/security.md`, `docs/troubleshooting.md` filled in from the real, built system (Stage B/C-dependent docs deliberately left as placeholders).
+
 ### Added — A8 frontend dashboard
 - 2026-09-14 — ADR 0010 (Raspberry-Pi-served static SPA) and A8 design (`docs/specs/a8-frontend-dashboard.md`).
 - 2026-09-14 — Full dashboard frontend (`dashboard/frontend/`): hand-written SPA router, `AuthContext`, typed `apiFetch`/`useApiClient` (401 redirect, one-time CSRF refresh-and-retry), pages Login/Panoramica/Dispositivi/Dettaglio dispositivo/Sicurezza/Sistema/Avvisi/Registro query, minimal SVG charts (Sparkline/LineChart/BarGauge), `usePolling` (paused when the tab is hidden), mobile-first responsive CSS with design tokens. No new runtime dependencies (still only react/react-dom).

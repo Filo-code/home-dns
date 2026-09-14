@@ -159,7 +159,7 @@ ADR 0001 gates G1–G5 still block Stage C. Gate G6 still blocks device-policy r
   - corrupted backups are detected
 - **Depends on:** A1
 
-### A5 — Monitoring
+### A5 — Monitoring ✅ (done 2026-09-14, see [a5-monitoring.md](specs/a5-monitoring.md))
 - **Goal:** turn raw checks into incidents without flapping or spam.
 - **Deliverables:**
   - health model: check result → component status
@@ -182,7 +182,7 @@ ADR 0001 gates G1–G5 still block Stage C. Gate G6 still blocks device-policy r
   - an exhausted restart budget escalates and stops restarting
 - **Depends on:** A4 (health_check framework)
 
-### A6 — Telegram alerting
+### A6 — Telegram alerting ✅ (done 2026-09-14, see [ADR 0006](adr/0006-telegram-alerting.md))
 - **Goal:** reliable, non-spammy, secret-safe notifications.
 - **Deliverables:**
   - `Notifier` interface with three implementations:
@@ -208,7 +208,7 @@ ADR 0001 gates G1–G5 still block Stage C. Gate G6 still blocks device-policy r
 - **Optional, owner-approved:** one manual live send to the owner's bot. It needs Internet access only, no network changes.
 - **Depends on:** A5
 
-### A7 — Backend
+### A7 — Backend ✅ (done 2026-09-14, see [ADR 0005](adr/0005-backend-dashboard.md))
 - **Goal:** the dashboard's server, fully usable with mock data.
 - **Deliverables:**
   - **ADR 0005** (backend and dashboard architecture).
@@ -232,7 +232,7 @@ ADR 0001 gates G1–G5 still block Stage C. Gate G6 still blocks device-policy r
   - rollup correctness and retention
 - **Depends on:** A1. Can run in parallel with A4–A6.
 
-### A8 — Dashboard
+### A8 — Dashboard ✅ (done 2026-09-14, see [ADR 0010](adr/0010-frontend-hosting.md))
 - **Goal:** a responsive UI that works entirely on mock data.
 - **Deliverables:**
   - pages: Overview, Devices, Security, Performance, Alerts, Configuration
@@ -245,7 +245,7 @@ ADR 0001 gates G1–G5 still block Stage C. Gate G6 still blocks device-policy r
   - end-to-end browser tests at three viewport sizes against the mock backend
 - **Depends on:** A7
 
-### A9 — Offline integration rehearsal
+### A9 — Offline integration rehearsal ✅ (done 2026-09-14, see [a9-integration-rehearsal.md](specs/a9-integration-rehearsal.md))
 - **Goal:** prove the whole system works together before touching hardware.
 - **Deliverables:**
   - end-to-end rehearsal in mock mode: pipeline → mock provider → backend → dashboard → incidents → mock Telegram
