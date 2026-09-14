@@ -54,6 +54,13 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Dates are ISO 
 - 2026-09-13 — CLI `home-dns blocklists update|status|rollback`; `scripts/blocklists/measure_sources.py`; `network`-marked real-list test.
 - 2026-09-13 — Source schema: `max_age_hours` (48 for both HaGeZi lists) and optional `sanity` limits.
 
+### Changed — A2 parameter decisions (owner-approved 2026-09-13)
+- 2026-09-13 — Sanity limits configured for `hagezi-multi-pro` (180k–280k, ±5 %) and `hagezi-tif-mini` (140k–225k, +12 %/−8 %) as review thresholds.
+- 2026-09-13 — Invalid-rule hard guard lowered from 5 % to 1 %.
+- 2026-09-13 — Artifact store keeps exactly three versions (`current`, `previous`, `backup`). Older artifacts and leftover temp files are pruned only after the new state is written. `blocklists status` shows `backup`.
+- 2026-09-13 — Tests prove `--accept-anomalies` never bypasses protected-domain, malformed-data, safety-validation, test-deployment or health-check gates.
+- 2026-09-13 — Plan: A5 stale-mirror escalation (warning, warning, critical; reset on valid update) and a ≥ 30-day re-measurement before C3.
+
 ### Changed
 - 2026-09-13 — `groups.yaml` no longer holds devices; device assignments move to backend storage (A7).
 - 2026-09-13 — Removed `dashboard/backend/` and `dashboard/shared/`; the backend lives in `src/home_dns/api/`.

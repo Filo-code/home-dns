@@ -99,7 +99,7 @@ class PipelineOptions:
     accept_anomalies: bool = False
     min_bytes: int = 1024
     max_bytes: int = 50 * 1024 * 1024
-    max_invalid_ratio: float = 0.05
+    max_invalid_ratio: float = 0.01  # owner-approved hard guard (observed 0.00 %)
     max_clock_skew: timedelta = timedelta(minutes=15)
     health_sample_size: int = 25
 
@@ -521,7 +521,8 @@ def update_source(
         stages,
         Stage.ACTIVATION,
         StageStatus.PASSED,
-        f"current {sha[:12]}, previous {(change.after.previous or '-')[:12]}",
+        f"current {sha[:12]}, previous {(change.after.previous or '-')[:12]}, "
+        f"backup {(change.after.backup or '-')[:12]}, pruned {len(change.pruned)} file(s)",
     )
     alerts.append(
         Alert(

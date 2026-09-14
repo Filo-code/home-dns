@@ -493,3 +493,99 @@ def test_health_sample_covers_small_lists_entirely(store: ArtifactStore) -> None
     )
     health = next(s for s in report.stages if s.stage is Stage.HEALTH_CHECK)
     assert health.status is StageStatus.PASSED and "60 sampled" in health.detail
+
+
+# ------------------------------------------- --accept-anomalies never bypasses safety gates
+
+
+def _gate_case(name: str) -> tuple[dict[str, Any], dict[str, Any], Outcome]:
+    """(fetcher script, extra run kwargs, expected outcome) for each safety gate."""
+    tripwire = adblock_list([*domains(60), "edge.video.example"], last_modified=FRESH)
+    malformed = _fresh(60, extra_lines=["@@||x.example^"] * 5)  # 7.7 % invalid > 1 % guard
+    truncated = _fresh(60, declared=90)
+    stale = _fresh(60, last_modified=STALE)
+    no_valid = adblock_list([], last_modified=FRESH, extra_lines=["@@||x.example^"] * 60)
+    cases: dict[str, tuple[dict[str, Any], dict[str, Any], Outcome]] = {
+        "protected_domain": ({PRIMARY: ok(PRIMARY, tripwire)}, {}, Outcome.BLOCKED_BY_TRIPWIRE),
+        "no_protected_domains": (
+            {PRIMARY: ok(PRIMARY, _fresh(60))},
+            {"protected": []},
+            Outcome.BLOCKED_BY_TRIPWIRE,
+        ),
+        "malformed_data": ({PRIMARY: ok(PRIMARY, malformed)}, {}, Outcome.KEPT_PREVIOUS),
+        "truncated_data": ({PRIMARY: ok(PRIMARY, truncated)}, {}, Outcome.KEPT_PREVIOUS),
+        "stale_data": ({PRIMARY: ok(PRIMARY, stale)}, {}, Outcome.KEPT_PREVIOUS),
+        "html_data": (
+            {PRIMARY: _response(body=b"<html>portal</html>" * 100)},
+            {},
+            Outcome.KEPT_PREVIOUS,
+        ),
+        "zero_valid_entries": (
+            {PRIMARY: ok(PRIMARY, no_valid)},
+            {"max_invalid_ratio": 1.0},
+            Outcome.FAILED,
+        ),
+        "test_deployment": (
+            {PRIMARY: ok(PRIMARY, _fresh(60))},
+            {"provider_factory": _FailingDeploy},
+            Outcome.FAILED,
+        ),
+        "health_check": (
+            {PRIMARY: ok(PRIMARY, _fresh(60))},
+            {"provider_factory": _BlocksNothing},
+            Outcome.FAILED,
+        ),
+    }
+    return cases[name]
+
+
+@pytest.mark.parametrize(
+    "gate",
+    [
+        "protected_domain",
+        "no_protected_domains",
+        "malformed_data",
+        "truncated_data",
+        "stale_data",
+        "html_data",
+        "zero_valid_entries",
+        "test_deployment",
+        "health_check",
+    ],
+)
+def test_accept_anomalies_never_bypasses_safety_gates(store: ArtifactStore, gate: str) -> None:
+    previous = _activate_previous(store, 50)
+    script, extra, expected = _gate_case(gate)
+    source = _source(urls={"primary": PRIMARY}, sanity={"max_added_ratio": 0.01})
+    report = _run(
+        ScriptedFetcher(script), store, source=source, dry_run=False, accept_anomalies=True, **extra
+    )
+    assert report.outcome is expected
+    assert report.outcome is not Outcome.ACTIVATED
+    assert store.state("list-a").current == previous
+
+
+def test_invalid_rule_guard_is_one_percent(store: ArtifactStore) -> None:
+    assert PipelineOptions(now=NOW).max_invalid_ratio == 0.01
+    under = _fresh(200, extra_lines=["@@||x.example^"])  # 0.5 %
+    over = _fresh(98, extra_lines=["@@||x.example^"] * 2)  # 2.0 %
+    assert (
+        _run(ScriptedFetcher({PRIMARY: ok(PRIMARY, under)}), store).outcome
+        is Outcome.WOULD_ACTIVATE
+    )
+    report = _run(
+        ScriptedFetcher({PRIMARY: ok(PRIMARY, over)}),
+        store,
+        source=_source(urls={"primary": PRIMARY}),
+    )
+    assert report.outcome is Outcome.KEPT_PREVIOUS
+    assert "invalid rules" in report.attempts[0].reason
+
+
+def test_pipeline_retains_three_versions(store: ArtifactStore, tmp_path: Path) -> None:
+    for count in (50, 51, 52, 53):
+        report = _run(ScriptedFetcher({PRIMARY: ok(PRIMARY, _fresh(count))}), store, dry_run=False)
+        assert report.outcome is Outcome.ACTIVATED
+    assert "pruned 2 file(s)" in report.stages[-1].detail
+    artifacts = list((tmp_path / "store" / "list-a" / "artifacts").glob("*.txt"))
+    assert len(artifacts) == 3

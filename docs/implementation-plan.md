@@ -64,7 +64,7 @@ ADR 0001 gates G1–G5 still block Stage C. Gate G6 still blocks device-policy r
   - unresolved placeholders in production mode
 - **Depends on:** A0
 
-### A2 — Blocklist pipeline ✅ (done 2026-09-13, see [ADR 0004](adr/0004-blocklist-pipeline.md); sanity limits pending approval)
+### A2 — Blocklist pipeline ✅ (done 2026-09-13, see [ADR 0004](adr/0004-blocklist-pipeline.md); parameters approved 2026-09-13)
 - **Goal:** turn untrusted list sources into validated, versioned, deployable artifacts that can be rolled back.
 - **Stages (owner-approved order, 2026-09-13):**
   1. download success
@@ -84,7 +84,7 @@ ADR 0001 gates G1–G5 still block Stage C. Gate G6 still blocks device-policy r
   Any suspicious or invalid result aborts before deployment and keeps the previous artifact. HTTP 200 alone is never sufficient. Sources: jsDelivr primary, `raw.githubusercontent.com` fallback.
 - **Deliverables:**
   - pipeline CLI, `--dry-run` by default
-  - content-addressed artifact store (current / previous / staged)
+  - content-addressed artifact store (current / previous / backup-2; older versions pruned atomically)
   - atomic activation and rollback
   - pipeline report (JSON)
   - sanity checks:
@@ -168,8 +168,15 @@ ADR 0001 gates G1–G5 still block Stage C. Gate G6 still blocks device-policy r
   - retry and backoff, with a restart budget (no infinite restart loops)
   - cooldown and deduplication keys
   - recovery detection
+  - **blocklist freshness escalation** (owner decision 2026-09-13), per source:
+    - 1st consecutive run that kept the previous artifact because both mirrors were stale or failed → warning
+    - 2nd consecutive such run → warning
+    - 3rd consecutive such run → **critical** Telegram alert
+    - any successful valid update (`activated` or `unchanged`) resets the counter
+    - escalation only notifies: it never changes filtering policy, never bypasses a safety gate and never deploys a questionable list
 - **Tests:**
   - simulated clock
+  - blocklist escalation: warning, warning, critical on three consecutive stale/failed runs; reset after a valid update
   - flapping inputs
   - a long outage produces exactly one alert, then one recovery
   - an exhausted restart budget escalates and stops restarting
@@ -262,7 +269,7 @@ During Stage C, no client or router points at the Pi.
 |---|---|
 | C1 | Install Pi-hole + Unbound (**explicit approval required**). Base DNS. DNS/DNSSEC tests by querying the Pi directly |
 | C2 | Implement `PiholeV6Provider`; run the contract tests against the real instance; re-verify regex behaviour |
-| C3 | Pipeline in staging, then the core lists. Storage guard, monitoring and Telegram go live |
+| C3 | Pipeline in staging, then the core lists. Storage guard, monitoring and Telegram go live. **Before this step:** re-measure the HaGeZi lists over ≥ 30 days and propose sanity-limit refinements (owner decision 2026-09-13). The blocklist update timer runs every `update_interval_hours` (24 h), read from config |
 | C4 | Backend + dashboard on the Pi (LAN-only) |
 | C5 | Real backup → restore test on the Pi. Rehearse rollback of a Pi-hole update (ADR 0001 T3) |
 

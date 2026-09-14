@@ -1,6 +1,9 @@
 # Blocklist source catalog (ADR 0003). Only lists approved by the owner belong here.
 # Adding a list requires a documented reason and an explicit decision.
 #
+# Sanity limits come from docs/research/2026-09-13-hagezi-measurements.md (12 days, 17 versions);
+# re-measure over >= 30 days before production and propose refinements.
+#
 # A successful download (HTTP 200) is never sufficient: the A2 pipeline validates content,
 # size, format, parsing, normalization, deduplication, protected-domain tripwire, rule
 # syntax and sanity before any test deployment, and aborts on anything suspicious.
@@ -16,9 +19,13 @@ sources:
     urls:
       primary: https://cdn.jsdelivr.net/gh/hagezi/dns-blocklists@latest/adblock/pro.txt
       fallback: https://raw.githubusercontent.com/hagezi/dns-blocklists/main/adblock/pro.txt
-    update_interval_hours: 24   # reviewed in A2
+    update_interval_hours: 24   # owner-approved 2026-09-13: one run per 24h (configurable)
     max_age_hours: 48           # owner-approved freshness limit (header "Last modified")
-    # sanity: limits are added only after the owner approves measured values (A2 report)
+    sanity:                     # owner-approved 2026-09-13; anomaly thresholds -> held for review
+      min_entries: 180000
+      max_entries: 280000
+      max_added_ratio: 0.05
+      max_removed_ratio: 0.05
 
   - id: hagezi-tif-mini
     name: HaGeZi Threat Intelligence Feeds (mini)
@@ -29,6 +36,10 @@ sources:
     urls:
       primary: https://cdn.jsdelivr.net/gh/hagezi/dns-blocklists@latest/adblock/tif.mini.txt
       fallback: https://raw.githubusercontent.com/hagezi/dns-blocklists/main/adblock/tif.mini.txt
-    update_interval_hours: 24   # reviewed in A2
+    update_interval_hours: 24   # owner-approved 2026-09-13: one run per 24h (configurable)
     max_age_hours: 48           # owner-approved freshness limit (header "Last modified")
-    # sanity: limits are added only after the owner approves measured values (A2 report)
+    sanity:                     # owner-approved 2026-09-13; anomaly thresholds -> held for review
+      min_entries: 140000
+      max_entries: 225000
+      max_added_ratio: 0.12
+      max_removed_ratio: 0.08

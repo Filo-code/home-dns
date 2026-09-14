@@ -271,6 +271,7 @@ def test_blocklists_apply_status_and_rollback(make_config_dir: MakeConfigDir) ->
     assert _bl(config_dir, "update", "--apply")[0] == 0
     code, out, _ = _bl(config_dir, "status")
     assert code == 0 and "list-a: current=" in out and "entries=40" in out
+    assert "backup=-" in out
 
     code, _, err = _bl(config_dir, "rollback", "list-a", "--apply")
     assert code == 1 and "no previous" in err

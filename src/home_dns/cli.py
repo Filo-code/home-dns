@@ -325,7 +325,10 @@ def _blocklists(
     if args.blocklists_command == "status":
         for source in sources:
             state = store.state(source.id)
-            line = f"{source.id}: current={state.current or '-'} previous={state.previous or '-'}"
+            line = (
+                f"{source.id}: current={state.current or '-'} previous={state.previous or '-'}"
+                f" backup={state.backup or '-'}"
+            )
             if state.current:
                 meta = store.read(source.id, state.current).metadata
                 line += (

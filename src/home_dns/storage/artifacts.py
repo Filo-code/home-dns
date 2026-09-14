@@ -4,11 +4,18 @@ Layout (per source):
 
     <root>/<source_id>/artifacts/<sha256>.txt    rendered artifact (immutable)
     <root>/<source_id>/artifacts/<sha256>.json   metadata (stats, origin, timestamps)
-    <root>/<source_id>/state.json                {"current": sha|null, "previous": sha|null}
+    <root>/<source_id>/state.json                {"current", "previous", "backup"}: sha | null
 
-Writes are atomic (temp file + fsync + rename). Every mutating method defaults to dry_run=True.
-Reads verify the SHA-256 of the artifact against its name, so on-disk corruption is detected.
-Retention/cleanup of old artifacts is handled by maintenance (A4).
+Retention (owner decision 2026-09-13): exactly three versions per source are kept —
+``current``, ``previous`` and ``backup`` (backup-2). Anything else is pruned.
+
+Safety rules:
+- Writes are atomic (temp file + fsync + rename). Every mutating method defaults to dry_run=True.
+- Reads verify the SHA-256 of the artifact against its name, so on-disk corruption is detected.
+- Pruning happens only after the new state has been written; an artifact referenced by the
+  state on disk is never deleted. A crash at any point leaves a consistent state, and leftover
+  files are pruned on the next activation.
+- Only files whose names match this store's own patterns are ever deleted.
 """
 
 from __future__ import annotations
@@ -23,6 +30,8 @@ from typing import Any
 
 _SOURCE_ID_RE = re.compile(r"[a-z][a-z0-9]*(?:-[a-z0-9]+)*")
 _SHA_RE = re.compile(r"[0-9a-f]{64}")
+_ARTIFACT_FILE_RE = re.compile(r"(?P<sha>[0-9a-f]{64})\.(?:txt|json)")
+_TEMP_FILE_RE = re.compile(r"\.[0-9a-f]{64}\.(?:txt|json)\.tmp")
 
 
 class ArtifactStoreError(Exception):
@@ -33,6 +42,10 @@ class ArtifactStoreError(Exception):
 class SourceState:
     current: str | None = None
     previous: str | None = None
+    backup: str | None = None
+
+    def retained(self) -> set[str]:
+        return {sha for sha in (self.current, self.previous, self.backup) if sha}
 
 
 @dataclass(frozen=True)
@@ -49,6 +62,7 @@ class StoreChange:
     before: SourceState
     after: SourceState
     wrote_artifact: bool
+    pruned: tuple[str, ...] = ()  # file names removed (or that would be removed in dry-run)
 
     @property
     def changed(self) -> bool:
@@ -90,7 +104,11 @@ class ArtifactStore:
             return SourceState()
         try:
             data = json.loads(path.read_text(encoding="utf-8"))
-            return SourceState(current=data.get("current"), previous=data.get("previous"))
+            return SourceState(
+                current=data.get("current"),
+                previous=data.get("previous"),
+                backup=data.get("backup"),  # absent in pre-retention state files
+            )
         except (json.JSONDecodeError, AttributeError) as exc:
             raise ArtifactStoreError(f"{path}: corrupted state file") from exc
 
@@ -109,35 +127,66 @@ class ArtifactStore:
         return self.read(source_id, sha) if sha else None
 
     def _write_state(self, source_id: str, state: SourceState) -> None:
-        payload = json.dumps({"current": state.current, "previous": state.previous}, indent=2)
+        payload = json.dumps(
+            {"current": state.current, "previous": state.previous, "backup": state.backup},
+            indent=2,
+        )
         _atomic_write(self._source_dir(source_id) / "state.json", payload.encode("utf-8"))
+
+    def _prunable(self, source_id: str, keep: set[str]) -> list[Path]:
+        directory = self._source_dir(source_id) / "artifacts"
+        if not directory.is_dir():
+            return []
+        prunable = []
+        for path in directory.iterdir():
+            match = _ARTIFACT_FILE_RE.fullmatch(path.name)
+            if (match and match.group("sha") not in keep) or _TEMP_FILE_RE.fullmatch(path.name):
+                prunable.append(path)
+        return sorted(prunable)
+
+    def _prune(self, paths: list[Path]) -> None:
+        for path in paths:
+            try:
+                path.unlink(missing_ok=True)
+            except OSError:
+                # State is already committed and consistent; a leftover file is retried next time.
+                continue
 
     def activate(
         self, source_id: str, text: str, metadata: dict[str, Any], *, dry_run: bool = True
     ) -> StoreChange:
-        """Make ``text`` the current artifact; the old current becomes previous."""
+        """Make ``text`` current; current -> previous -> backup; older artifacts are pruned."""
         sha = sha256_text(text)
         before = self.state(source_id)
         if before.current == sha:
             return StoreChange(dry_run, source_id, before, before, wrote_artifact=False)
-        after = SourceState(current=sha, previous=before.current)
+        after = SourceState(current=sha, previous=before.current, backup=before.previous)
         text_path, meta_path = self._artifact_paths(source_id, sha)
         write_needed = not text_path.is_file()
+        prunable = self._prunable(source_id, keep=after.retained())
         if not dry_run:
             if write_needed:
                 _atomic_write(text_path, text.encode("utf-8"))
             _atomic_write(meta_path, json.dumps(metadata, indent=2, sort_keys=True).encode("utf-8"))
             self.read(source_id, sha)  # verify what was written before switching pointers
             self._write_state(source_id, after)
-        return StoreChange(dry_run, source_id, before, after, wrote_artifact=write_needed)
+            self._prune(prunable)  # only after the new state is durable
+        return StoreChange(
+            dry_run,
+            source_id,
+            before,
+            after,
+            wrote_artifact=write_needed,
+            pruned=tuple(p.name for p in prunable),
+        )
 
     def rollback(self, source_id: str, *, dry_run: bool = True) -> StoreChange:
-        """Swap current and previous. The previous artifact must exist and pass integrity."""
+        """Swap current and previous; backup is kept. The previous artifact must pass integrity."""
         before = self.state(source_id)
         if before.previous is None:
             raise ArtifactStoreError(f"{source_id}: no previous artifact to roll back to")
         self.read(source_id, before.previous)
-        after = SourceState(current=before.previous, previous=before.current)
+        after = SourceState(current=before.previous, previous=before.current, backup=before.backup)
         if not dry_run:
             self._write_state(source_id, after)
         return StoreChange(dry_run, source_id, before, after, wrote_artifact=False)

@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| **Status** | Accepted (sanity-limit values pending owner approval) |
+| **Status** | Accepted (parameters approved by the owner 2026-09-13) |
 | Date | 2026-09-13 |
 | Decision owner | Project owner (13-step order, sources, freshness and anomaly policy approved 2026-09-13) |
 | Related | [ADR 0003](0003-configuration-model.md) · [measurements](../research/2026-09-13-hagezi-measurements.md) · [blocklists.md](../blocklists.md) |
@@ -57,6 +57,35 @@
 - **Limits require evidence and approval.** Sanity limits are optional per source (`sanity:` in `sources.yaml`) and applied only after owner approval of measured values. Without them, the size and delta checks are skipped and reported.
 - **Offline testing.** Tests never use the network. One `network`-marked test runs the real lists from both mirrors through the pipeline in dry-run.
 
+### Approved parameters (owner decision 2026-09-13)
+
+| Parameter | Value | Where |
+|---|---|---|
+| Sanity limits, `hagezi-multi-pro` | min 180,000 · max 280,000 · added ≤ 0.05 · removed ≤ 0.05 | `config/blocklists/sources.yaml` |
+| Sanity limits, `hagezi-tif-mini` | min 140,000 · max 225,000 · added ≤ 0.12 · removed ≤ 0.08 | `config/blocklists/sources.yaml` |
+| Invalid-rule hard guard | 1 % | `PipelineOptions.max_invalid_ratio` |
+| Update interval | 24 h, per source, configurable | `update_interval_hours` (read by the scheduler, C3) |
+| Freshness | 48 h | `max_age_hours` |
+| Artifact retention | exactly 3 versions: `current`, `previous`, `backup` | `storage.artifacts` |
+| Stale-mirror escalation | warning, warning, critical on the 3rd consecutive stale/failed run; reset on a valid update | A5 incident engine |
+
+- **Sanity limits** are anomaly thresholds: exceeding one holds the update for review. They are derived from 12 days of data and must be re-measured over at least 30 days before C3.
+
+**Retention safety:**
+- On activation, `current → previous → backup` shifts first.
+- Files not referenced by the new state are deleted only **after** the new `state.json` is durably written (atomic rename).
+- A crash before that point leaves the old state and all its artifacts intact; leftovers are pruned on the next activation.
+- Only file names matching the store's own patterns (`<sha256>.txt|json`, `.<sha256>.*.tmp`) are ever deleted.
+- Rollback swaps `current` and `previous` and keeps `backup`.
+
+**`--accept-anomalies` scope:** it only lets an update past **sanity-limit anomalies** after manual review. It never bypasses:
+- protected-domain violations, or the refusal to activate without protected domains;
+- malformed or invalid data: download, HTTP/content, size, format, freshness, parse, invalid-rule guard, declared-count checks, zero valid entries;
+- failed safety validation: artifact re-parse;
+- failed test deployment or health check.
+
+Each case is covered by a parametrized test.
+
 ## Alternatives considered
 
 | Alternative | Why not |
@@ -70,6 +99,6 @@
 ## Consequences
 
 - **Activation is refused until A3 seeds protected domains.** The tripwire cannot verify anything while the protected set is empty. This is intended.
-- **Old artifacts accumulate (~4–5 MB each).** Retention and cleanup belong to A4, before any unattended scheduling.
-- **Sanity limits remain unconfigured** until the owner approves the proposal in the measurement report.
+- **Bounded disk use.** At most three artifacts per source (~15 MB for Multi PRO, ~11 MB for TIF Mini) plus metadata.
+- **Refinement pending.** Sanity limits are configured from a 12-day sample and must be refined with ≥ 30 days of data before production (C3).
 - **A real provider** (`PiHoleV6Provider`, C2) must pass the same `deploy_blocklist`/`lookup_domain` contract tests as the mock.

@@ -8,10 +8,13 @@
 
 ## Approved lists
 
-| Id | List | Primary | Fallback | Freshness |
-|---|---|---|---|---|
-| `hagezi-multi-pro` | HaGeZi Multi PRO | jsDelivr | GitHub raw | 48 h |
-| `hagezi-tif-mini` | HaGeZi TIF Mini | jsDelivr | GitHub raw | 48 h |
+| Id | List | Primary | Fallback | Interval | Freshness | Entries (review if outside) | Change per run (review if above) |
+|---|---|---|---|---|---|---|---|
+| `hagezi-multi-pro` | HaGeZi Multi PRO | jsDelivr | GitHub raw | 24 h | 48 h | 180,000–280,000 | +5 % / −5 % |
+| `hagezi-tif-mini` | HaGeZi TIF Mini | jsDelivr | GitHub raw | 24 h | 48 h | 140,000–225,000 | +12 % / −8 % |
+
+- **Hard guard:** more than **1 %** invalid rules rejects the download.
+- **Limits approved 2026-09-13.** They must be re-measured over ≥ 30 days before production.
 
 - **Catalog:** `config/blocklists/sources.yaml`.
 - **Adding a list** requires a documented reason and an explicit owner decision.
@@ -24,6 +27,27 @@ For each source:
 3. **Nothing acceptable:** if neither mirror is acceptable, **keep the currently active list** and raise a warning.
 4. **Remaining checks** on the accepted download: protected-domain tripwire (hard gate), artifact syntax validation, sanity, test deployment on an isolated mock, health check.
 5. **Activation:** only with `--apply`.
+
+## Versions kept and rollback
+
+- **Three versions per source:** `current`, `previous` and `backup`. Older artifacts are deleted automatically, but only after the new state has been written, so a crash never removes a version still in use.
+- **`rollback`** swaps `current` and `previous` and keeps `backup`. Rolling back twice returns to where you started.
+
+## What `--accept-anomalies` can and cannot do
+
+- **It can:** let an update through after you have **reviewed** a change outside the sanity limits (`held_for_review`).
+- **It can never bypass:**
+  - protected-domain hits, or the refusal to activate without protected domains;
+  - malformed, truncated, stale, HTML or otherwise invalid downloads (including the 1 % invalid-rule guard and lists with zero valid entries);
+  - artifact validation;
+  - test deployment or health-check failures.
+
+## Escalation (implemented in A5)
+
+- **Counting:** a run that keeps the previous list because no mirror was acceptable counts as a stale/failed run.
+- **Alerts:** warning on the 1st and 2nd consecutive such runs, **critical** Telegram alert on the 3rd.
+- **Reset:** any valid update (`activated` or `unchanged`) resets the counter.
+- **Notification only:** escalation never changes policies or bypasses a gate.
 
 ## Commands (development machine)
 

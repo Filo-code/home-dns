@@ -116,3 +116,15 @@ def test_filtering_files_are_excluded_from_generic_scan(make_config_dir: MakeCon
     config_dir = make_config_dir(DEV_PROFILE, **{"telegram__alerts.yaml": "a: 1\n"})
     scanned = scan_config_tree(config_dir, exclude=filtering_config_files(config_dir))
     assert [s.path.name for s in scanned] == ["alerts.yaml"]
+
+
+def test_repository_sources_have_approved_limits(repo_config_dir: Path) -> None:
+    sources = {s.id: s for s in load_filtering_config(repo_config_dir, now=NOW).config.sources}
+    multi, tif = sources["hagezi-multi-pro"], sources["hagezi-tif-mini"]
+    assert (multi.update_interval_hours, multi.max_age_hours) == (24, 48)
+    assert (tif.update_interval_hours, tif.max_age_hours) == (24, 48)
+    assert multi.sanity is not None and tif.sanity is not None
+    assert (multi.sanity.min_entries, multi.sanity.max_entries) == (180_000, 280_000)
+    assert (multi.sanity.max_added_ratio, multi.sanity.max_removed_ratio) == (0.05, 0.05)
+    assert (tif.sanity.min_entries, tif.sanity.max_entries) == (140_000, 225_000)
+    assert (tif.sanity.max_added_ratio, tif.sanity.max_removed_ratio) == (0.12, 0.08)

@@ -86,7 +86,7 @@
 4. **TIF Mini is more volatile.** It had one legitimate release with **+5.85 % added** (2026-09-05 09:08). This confirms that a large change must be an *anomaly to review*, not an automatic failure.
 5. **Freshness.** `Expires: 8 hours`. The freshest version was ~11 h old when downloaded. A 48 h freshness limit leaves ample headroom.
 
-## Sanity-limit proposal (NOT configured — awaiting owner approval)
+## Sanity limits (approved by the owner 2026-09-13 and configured in `config/blocklists/sources.yaml`)
 
 These are **anomaly thresholds**. Exceeding one holds the update for review and keeps the previous artifact. Nothing is deleted or failed.
 
@@ -103,8 +103,12 @@ Hard guards in code (reject or fail, independent of the limits above), with a pr
 
 | Guard | Current default | Observed | Proposal |
 |---|---|---|---|
-| Invalid-rule ratio (format check) | 5 % | 0.00 % | **1 %** |
+| Invalid-rule ratio (format check) | ~~5 %~~ → **1 %** (approved) | 0.00 % | applied |
 | Body size | 1 KiB – 50 MiB | 3.68 – 5.00 MB | keep |
 | Declared entries = parsed rules | required when declared | 34/34 | keep |
 | Freshness (`Last modified`) | 48 h (owner-approved) | ≤ ~11 h | keep |
 | Future-dated header | > 15 min skew rejected | — | keep |
+
+## Follow-up
+
+- **Re-measure** over at least 30 days of history before production activation (C3), using `scripts/blocklists/measure_sources.py`. Propose refinements if the longer dataset warrants them.
