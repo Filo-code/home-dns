@@ -41,9 +41,7 @@ class NotifyStore:
                 last_sent_at={
                     k: datetime.fromisoformat(v) for k, v in data["last_sent_at"].items()
                 },
-                sent_within_hour=tuple(
-                    datetime.fromisoformat(v) for v in data["sent_within_hour"]
-                ),
+                sent_within_hour=tuple(datetime.fromisoformat(v) for v in data["sent_within_hour"]),
             )
         except (json.JSONDecodeError, KeyError, ValueError) as exc:
             raise NotifyStoreError(f"{self._path}: corrupted anti-spam state") from exc

@@ -134,9 +134,7 @@ def test_should_send_null_rate_limit_means_no_limit() -> None:
         assert allowed
 
 
-@pytest.mark.parametrize(
-    ("field", "value"), [("cooldown_seconds", -1), ("rate_limit_per_hour", 0)]
-)
+@pytest.mark.parametrize(("field", "value"), [("cooldown_seconds", -1), ("rate_limit_per_hour", 0)])
 def test_anti_spam_policy_rejects_invalid_values(field: str, value: float) -> None:
     with pytest.raises(ValidationError):
         AntiSpamPolicy(**{field: value})

@@ -33,9 +33,7 @@ def test_strips_surrounding_quotes(tmp_path: Path) -> None:
 
 
 @pytest.mark.parametrize("mode", [0o640, 0o644, 0o604, 0o606])
-def test_refuses_group_or_other_readable_file_before_reading_it(
-    tmp_path: Path, mode: int
-) -> None:
+def test_refuses_group_or_other_readable_file_before_reading_it(tmp_path: Path, mode: int) -> None:
     path = tmp_path / "telegram.env"
     _write(path, "TELEGRAM_BOT_TOKEN=super-secret-value\n", mode)
     with pytest.raises(SecretFilePermissionError):
