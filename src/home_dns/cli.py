@@ -137,6 +137,13 @@ def _build_parser() -> argparse.ArgumentParser:
 
     serve = commands.add_parser("serve", help="run the dashboard API (development only until C4)")
     _add_config_arguments(serve)
+    serve.add_argument(
+        "--static-dir",
+        type=Path,
+        default=None,
+        help="serve a built frontend (vite build's dist/) from this process (A8, docs/adr/"
+        "0010-frontend-hosting.md); default None keeps today's API-only behaviour unchanged",
+    )
 
     blocklists = commands.add_parser("blocklists", help="blocklist pipeline (development only)")
     actions = blocklists.add_subparsers(dest="blocklists_command", required=True)
@@ -558,10 +565,19 @@ def _serve(args: argparse.Namespace, err: TextIO, now: Callable[[], datetime]) -
         context = _dashboard_context(
             config, runtime.provider, store, filtering.config, storage_config, paths, now
         )
+        if args.static_dir is not None and not (args.static_dir / "index.html").is_file():
+            print(
+                f"--static-dir {args.static_dir}: no index.html (run the frontend build first)",
+                file=err,
+            )
+            return EXIT_NOT_READY
         api = config.settings.api
         uvicorn.run(
             create_app(
-                environment=config.environment, provider=runtime.provider, dashboard=context
+                environment=config.environment,
+                provider=runtime.provider,
+                dashboard=context,
+                static_dir=args.static_dir,
             ),
             host=str(api.bind_host),
             port=int(str(api.port)),

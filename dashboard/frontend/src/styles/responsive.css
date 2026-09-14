@@ -1,0 +1,85 @@
+/* Mobile-first: base.css is already usable at phone width. These are the widened/adapted
+ * layouts for tablet and desktop, plus the phone-specific table -> card transform
+ * (docs/specs/a8-frontend-dashboard.md §14). Breakpoints: <=480px phone, 481-1024px tablet,
+ * >1024px desktop. */
+
+/* Phone (<=480px): tables become stacked cards instead of horizontal-scroll grids, and the
+ * nav's links row becomes a fixed bottom bar so the page content isn't pushed down. */
+@media (max-width: 480px) {
+  .data-table thead {
+    display: none;
+  }
+
+  .data-table,
+  .data-table tbody,
+  .data-table tr,
+  .data-table td {
+    display: block;
+    width: 100%;
+  }
+
+  .data-table tr {
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    margin-bottom: var(--space-3);
+    padding: var(--space-2) var(--space-3);
+  }
+
+  .data-table td {
+    display: flex;
+    justify-content: space-between;
+    gap: var(--space-3);
+    border-bottom: 1px solid var(--color-bg);
+    white-space: normal;
+    text-align: right;
+  }
+
+  .data-table td::before {
+    content: attr(data-label);
+    color: var(--color-text-muted);
+    font-size: var(--font-size-sm);
+    text-align: left;
+  }
+
+  .data-table td:last-child {
+    border-bottom: none;
+  }
+
+  /* The top bar (brand + logout, so logout stays reachable) stays sticky as in base.css;
+   * only the page links move to a fixed bottom tab bar, the common mobile nav pattern. */
+  .nav__username {
+    display: none;
+  }
+
+  .nav__links {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: var(--nav-height);
+    margin: 0;
+    justify-content: space-around;
+    background: var(--color-surface);
+    border-top: 1px solid var(--color-border);
+    z-index: 10;
+    overflow-x: auto;
+  }
+
+  .app-shell__content {
+    padding-bottom: calc(var(--nav-height) + var(--space-5));
+  }
+}
+
+/* Tablet / iPad (481-1024px) */
+@media (min-width: 481px) and (max-width: 1024px) {
+  .card-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+/* Desktop (>1024px) */
+@media (min-width: 1025px) {
+  .card-grid {
+    grid-template-columns: repeat(4, 1fr);
+  }
+}

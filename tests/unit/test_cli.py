@@ -317,6 +317,68 @@ def test_serve_dashboard_status_tolerates_corrupt_state(
     assert status.last_blocklist_update_at is None and status.incidents == ()
 
 
+# --------------------------------------------------------------- A8: --static-dir
+
+
+def test_serve_static_dir_is_passed_to_create_app(
+    make_config_dir: MakeConfigDir, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    dist = tmp_path / "dist"
+    dist.mkdir()
+    (dist / "index.html").write_text("<html></html>")
+    captured: dict[str, Any] = {}
+    real_create_app = cli.create_app
+    monkeypatch.setattr(
+        cli, "create_app", lambda **kw: (captured.update(kw), real_create_app(**kw))[1]
+    )
+    monkeypatch.setattr(cli.uvicorn, "run", lambda app, **kw: None)
+    config_dir = make_config_dir(DEV_PROFILE)
+    _set_password(monkeypatch, config_dir, "admin", "admin", "long enough password")
+    code, _, _ = _run("serve", "--config-dir", str(config_dir), "--static-dir", str(dist))
+    assert code == 0
+    assert captured["static_dir"] == dist
+
+
+def test_serve_default_static_dir_is_none(
+    make_config_dir: MakeConfigDir, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    captured: dict[str, Any] = {}
+    real_create_app = cli.create_app
+    monkeypatch.setattr(
+        cli, "create_app", lambda **kw: (captured.update(kw), real_create_app(**kw))[1]
+    )
+    monkeypatch.setattr(cli.uvicorn, "run", lambda app, **kw: None)
+    config_dir = make_config_dir(DEV_PROFILE)
+    _set_password(monkeypatch, config_dir, "admin", "admin", "long enough password")
+    assert _run("serve", "--config-dir", str(config_dir))[0] == 0
+    assert captured["static_dir"] is None
+
+
+def test_serve_static_dir_without_index_html_is_refused(
+    make_config_dir: MakeConfigDir, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    empty_dist = tmp_path / "not-built-yet"
+    empty_dist.mkdir()
+    monkeypatch.setattr(cli.uvicorn, "run", lambda app, **kw: pytest.fail("must not start"))
+    config_dir = make_config_dir(DEV_PROFILE)
+    _set_password(monkeypatch, config_dir, "admin", "admin", "long enough password")
+    code, _, err = _run("serve", "--config-dir", str(config_dir), "--static-dir", str(empty_dist))
+    assert code == 1
+    assert "index.html" in err
+
+
+def test_serve_missing_static_dir_is_refused(
+    make_config_dir: MakeConfigDir, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.setattr(cli.uvicorn, "run", lambda app, **kw: pytest.fail("must not start"))
+    config_dir = make_config_dir(DEV_PROFILE)
+    _set_password(monkeypatch, config_dir, "admin", "admin", "long enough password")
+    missing = tmp_path / "does-not-exist"
+    code, _, err = _run("serve", "--config-dir", str(config_dir), "--static-dir", str(missing))
+    assert code == 1
+    assert "index.html" in err
+
+
 # ------------------------------------------------------------------ A1: filtering config
 
 FIXED_NOW = datetime(2026, 9, 13, 12, 0, tzinfo=UTC)

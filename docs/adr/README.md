@@ -14,6 +14,7 @@ ADRs are never deleted. A changed decision is recorded in a **new** ADR that sup
 | [0007](0007-storage-strategy.md) | Storage and maintenance strategy | Accepted |
 | 0008 | IPv6 strategy | Not yet written (D3, after Fastweb Seven audit) |
 | [0009](0009-filtering-policy.md) | Filtering policy, protected domains and policy engine | Accepted (Light/Normal sanity limits pending approval) |
+| [0010](0010-frontend-hosting.md) | Frontend hosting: Raspberry-Pi-served static SPA | Accepted |
 
 Planned numbers follow [../implementation-plan.md](../implementation-plan.md) and may shift if new decisions come up.
 

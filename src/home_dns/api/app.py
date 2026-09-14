@@ -5,9 +5,13 @@ from __future__ import annotations
 import threading
 from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import asynccontextmanager
+from pathlib import Path
 
-from fastapi import FastAPI, Request, Response, status
+from fastapi import FastAPI, HTTPException, Request, Response, status
+from fastapi.responses import FileResponse
 from pydantic import BaseModel
+from starlette.middleware.gzip import GZipMiddleware
+from starlette.staticfiles import StaticFiles
 
 from home_dns import __version__
 from home_dns.api import auth, views
@@ -37,6 +41,13 @@ _SECURITY_HEADERS = {
 }
 # JSON endpoints only: the development-only /api/docs page loads its own assets.
 _API_CSP = "default-src 'none'; frame-ancestors 'none'"
+# The static frontend (A8): a same-origin SPA needs to load its own script/style/images and
+# call its own API, nothing else. Verified against the real `vite build` output in
+# tests/api/test_static_hosting.py rather than assumed.
+_FRONTEND_CSP = (
+    "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; "
+    "connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'"
+)
 
 
 def create_app(
@@ -44,8 +55,15 @@ def create_app(
     environment: Environment,
     provider: DnsProvider,
     dashboard: DashboardContext | None = None,
+    static_dir: Path | None = None,
 ) -> FastAPI:
-    """Without ``dashboard`` only the public health endpoint exists."""
+    """Without ``dashboard`` only the public health endpoint exists.
+
+    ``static_dir``, when given, serves the built frontend (``vite build``'s ``dist/``) from the
+    same process and origin as the API (docs/adr/0010-frontend-hosting.md) — no nginx, no
+    Node.js at runtime. The API routers are always registered first, and the SPA catch-all route
+    added last, so ``/api/v1/*`` can never be shadowed by the frontend.
+    """
     production = environment is Environment.PRODUCTION
 
     @asynccontextmanager
@@ -81,6 +99,9 @@ def create_app(
         lifespan=lifespan,
     )
     app.state.provider = provider
+    # Outermost among user middleware (added last -> wraps closest to the client); compresses
+    # whatever body the router/StaticFiles below eventually produce, API or static alike.
+    app.add_middleware(GZipMiddleware, minimum_size=1000)
 
     @app.middleware("http")
     async def security_headers(
@@ -90,6 +111,8 @@ def create_app(
         response.headers.update(_SECURITY_HEADERS)
         if request.url.path.startswith("/api/v1"):
             response.headers["Content-Security-Policy"] = _API_CSP
+        elif static_dir is not None:
+            response.headers["Content-Security-Policy"] = _FRONTEND_CSP
         return response
 
     if dashboard is not None:
@@ -112,4 +135,31 @@ def create_app(
             version=__version__,
         )
 
+    if static_dir is not None:
+        _mount_static_frontend(app, static_dir)
+
     return app
+
+
+def _mount_static_frontend(app: FastAPI, static_dir: Path) -> None:
+    """Serve a `vite build` output. Registered after every API route above, so an unmatched
+    `/api/*` path 404s instead of falling through to the SPA (checked explicitly below too,
+    since route-registration order alone is easy to get wrong on a future refactor)."""
+    assets_dir = static_dir / "assets"
+    if assets_dir.is_dir():
+        # Real files, real 404s for a missing hashed bundle: no HTML fallback here.
+        app.mount("/assets", StaticFiles(directory=assets_dir), name="frontend-assets")
+
+    index_file = static_dir / "index.html"
+
+    @app.get("/{full_path:path}", include_in_schema=False)
+    async def spa_fallback(full_path: str) -> FileResponse:
+        if full_path == "api" or full_path.startswith("api/"):
+            raise HTTPException(status.HTTP_404_NOT_FOUND)
+        if full_path and ".." not in Path(full_path).parts:
+            candidate = static_dir / full_path
+            if candidate.is_file():
+                return FileResponse(candidate)
+        if not index_file.is_file():
+            raise HTTPException(status.HTTP_404_NOT_FOUND, "frontend build not found")
+        return FileResponse(index_file)

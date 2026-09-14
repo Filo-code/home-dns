@@ -5,6 +5,12 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Dates are ISO 
 
 ## [Unreleased]
 
+### Added — A8 frontend dashboard
+- 2026-09-14 — ADR 0010 (Raspberry-Pi-served static SPA) and A8 design (`docs/specs/a8-frontend-dashboard.md`).
+- 2026-09-14 — Full dashboard frontend (`dashboard/frontend/`): hand-written SPA router, `AuthContext`, typed `apiFetch`/`useApiClient` (401 redirect, one-time CSRF refresh-and-retry), pages Login/Panoramica/Dispositivi/Dettaglio dispositivo/Sicurezza/Sistema/Avvisi/Registro query, minimal SVG charts (Sparkline/LineChart/BarGauge), `usePolling` (paused when the tab is hidden), mobile-first responsive CSS with design tokens. No new runtime dependencies (still only react/react-dom).
+- 2026-09-14 — `make gen-types`/`make check-types`: OpenAPI-schema-generated TypeScript types (`openapi-typescript`, isolated in `scripts/codegen/` due to a TypeScript 7 incompatibility — TD-013), verified to stay in sync via `make check`.
+- 2026-09-14 — `create_app(..., static_dir=...)`: serves the built frontend from the same FastAPI process as the API (path-aware CSP, GZip, SPA fallback with path-traversal guard, `/api/v1/*` never shadowed); `home-dns serve --static-dir` and `make serve-static` for local rehearsal. Default behaviour (`static_dir=None`) unchanged.
+
 ### Added
 - 2026-09-13 — Documentation-based comparison of Pi-hole + Unbound, AdGuard Home and Technitium DNS Server (`docs/architecture-comparison.md`).
 - 2026-09-13 — ADR 0001: Pi-hole v6 + Unbound, *approved for implementation planning — pending Raspberry Pi audit and final Fastweb Seven network validation* (`docs/adr/0001-dns-architecture.md`).

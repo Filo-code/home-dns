@@ -1,0 +1,9 @@
+{
+  "name": "home-dns-codegen-tools",
+  "private": true,
+  "description": "Isolated devtool dependencies used only by scripts/generate-frontend-types.sh. openapi-typescript needs the classic TypeScript compiler API (ts.factory) internally and is not yet compatible with TypeScript 7 (which dashboard/frontend is pinned to for the app itself) — see docs/technical-debt.md. Kept in its own package.json/lockfile so the two never conflict; never imported by application code.",
+  "devDependencies": {
+    "openapi-typescript": "7.13.0",
+    "typescript": "^5.9.3"
+  }
+}
