@@ -1,9 +1,14 @@
-# Monitoring configuration (planned)
+# Monitoring configuration
 
-> **Status: not written.** Filled in Phase 12. Numeric thresholds (latency, CPU, RAM, temperature) come from the Raspberry Pi resource baseline (ADR 0001 gate G2), not from guesses.
+`monitoring.yaml` holds the A5 incident/backoff policy — see
+[docs/specs/a5-monitoring.md](../../docs/specs/a5-monitoring.md) for the full design.
 
-Must monitor independently (ADR 0001 T1):
-- `pihole-FTL` service and DNS answers on port 53
-- `unbound` service and recursive resolution / DNSSEC validation
+- `incident.*` — consecutive-result counts and cooldown for the `OK → SUSPECT → INCIDENT →
+  RECOVERING → OK` state machine (`src/home_dns/core/monitoring.py`). Suppresses flapping: a
+  single bad result is not an incident, a single good result right after one is not a recovery.
+- `restart_budget.*` — bounded retry/backoff so a failing check never restarts forever
+  (CLAUDE.md §32).
 
-Recovery flow (CLAUDE.md §32): detect → retry → backoff → recover if safe → verify → notify. No infinite restart loops.
+Concrete Pi-hole/Unbound checks (numeric latency/CPU/RAM/temperature thresholds from the
+Raspberry Pi resource baseline, ADR 0001 gate G2) are not part of A5 — nothing exists yet to
+check. Those arrive with C1, using the same framework this file configures.

@@ -1,0 +1,18 @@
+# Monitoring policy (A5, docs/specs/a5-monitoring.md). Values are configurable here, never
+# hard-coded in application code (src/home_dns/core/monitoring.py reads them as plain parameters).
+#
+# incident_after / recovered_after are counts of consecutive check results, not a duration — this
+# is what suppresses flapping (CLAUDE.md §30/§32): a single bad result is SUSPECT, not an incident;
+# a single good result right after an incident is RECOVERING, not immediately OK.
+schema_version: 1
+
+incident:
+  incident_after: 2      # consecutive PROBLEM results before an incident opens (fires one alert)
+  recovered_after: 1     # consecutive OK results before it closes (fires one recovery alert)
+  cooldown_seconds: 0    # repeat-reminder interval while still open; 0 = alert once, then silence
+
+restart_budget:
+  max_attempts: 5         # bounded retries; the budget then stays exhausted (no infinite loop)
+  base_delay_seconds: 1.0
+  max_delay_seconds: 300.0
+  backoff_factor: 2.0

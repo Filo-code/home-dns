@@ -151,13 +151,30 @@ retention:
 """,
 }
 
+# Minimal valid monitoring configuration (A5). Same shape as the repo's own file.
+MONITORING_FILES: dict[str, str] = {
+    "monitoring__monitoring.yaml": """\
+schema_version: 1
+incident:
+  incident_after: 2
+  recovered_after: 1
+  cooldown_seconds: 0
+restart_budget:
+  max_attempts: 5
+  base_delay_seconds: 1.0
+  max_delay_seconds: 300.0
+  backoff_factor: 2.0
+""",
+}
+
 
 @pytest.fixture
 def make_config_dir(tmp_path: Path) -> Callable[..., Path]:
-    """Create <tmp>/config with app/<env>.yaml, valid filtering/storage sets and optional extras.
+    """Create <tmp>/config with app/<env>.yaml, valid filtering/storage/monitoring sets and
+    optional extras.
 
-    Pass ``filtering=False`` / ``storage=False`` to omit those default file sets; extra files
-    override defaults of either set.
+    Pass ``filtering=False`` / ``storage=False`` / ``monitoring=False`` to omit those default
+    file sets; extra files override defaults of any set.
     """
 
     def factory(
@@ -166,6 +183,7 @@ def make_config_dir(tmp_path: Path) -> Callable[..., Path]:
         *,
         filtering: bool = True,
         storage: bool = True,
+        monitoring: bool = True,
         **extra_files: str,
     ) -> Path:
         config_dir = tmp_path / "config"
@@ -174,6 +192,7 @@ def make_config_dir(tmp_path: Path) -> Callable[..., Path]:
         files = {
             **(FILTERING_FILES if filtering else {}),
             **(STORAGE_FILES if storage else {}),
+            **(MONITORING_FILES if monitoring else {}),
             **extra_files,
         }
         for relative, text in files.items():

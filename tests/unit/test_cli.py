@@ -664,3 +664,145 @@ def test_backup_cleans_up_snapshot_directory_even_when_create_backup_fails(
     tmp_dir = config_dir.parent / ".local" / "tmp"
     leftovers = list(tmp_dir.glob(".db-snapshot-*")) if tmp_dir.exists() else []
     assert leftovers == []
+
+
+# ---------------------------------------------------------------------- A5: monitoring commands
+
+
+def _mon(config_dir: Path, *argv: str, disk: _FakeDisk | None = None) -> tuple[int, str, str]:
+    out, err = io.StringIO(), io.StringIO()
+    code = cli.main(
+        ["monitoring", *argv, "--config-dir", str(config_dir)],
+        out=out,
+        err=err,
+        now=lambda: FIXED_NOW,
+        disk=disk or _FakeDisk(10),
+    )
+    return code, out.getvalue(), err.getvalue()
+
+
+def test_monitoring_status_healthy_storage_is_ok_no_alert(make_config_dir: MakeConfigDir) -> None:
+    config_dir = make_config_dir(DEV_PROFILE)
+    code, out, _ = _mon(config_dir, "status", disk=_FakeDisk(10))
+    assert code == 0
+    assert "check=ok incident=ok transition=none" in out
+    assert "alert" not in out
+
+
+def test_monitoring_status_dry_run_does_not_persist(make_config_dir: MakeConfigDir) -> None:
+    config_dir = make_config_dir(DEV_PROFILE)
+    code, out, _ = _mon(config_dir, "status", disk=_FakeDisk(95))
+    assert code == 0 and "(dry-run: not persisted)" in out
+    assert not (config_dir.parent / ".local" / "data" / "monitoring").exists()
+
+
+def test_monitoring_status_apply_opens_incident_after_two_bad_checks(
+    make_config_dir: MakeConfigDir,
+) -> None:
+    config_dir = make_config_dir(DEV_PROFILE)
+    code, out, _ = _mon(config_dir, "status", "--apply", disk=_FakeDisk(95))
+    assert code == 0 and "incident=suspect" in out and "alert" not in out
+
+    code, out, _ = _mon(config_dir, "status", "--apply", disk=_FakeDisk(95))
+    assert code == 0 and "incident=incident transition=opened" in out
+    assert "alert [critical] storage_above_90" in out
+
+
+def test_monitoring_status_recovers_after_incident(make_config_dir: MakeConfigDir) -> None:
+    config_dir = make_config_dir(DEV_PROFILE)
+    assert _mon(config_dir, "status", "--apply", disk=_FakeDisk(95))[0] == 0
+    assert "opened" in _mon(config_dir, "status", "--apply", disk=_FakeDisk(95))[1]
+
+    code, out, _ = _mon(config_dir, "status", "--apply", disk=_FakeDisk(10))
+    assert code == 0 and "transition=recovered" in out
+    assert "alert [info] service_recovered" in out
+
+
+def test_monitoring_status_json_format(make_config_dir: MakeConfigDir) -> None:
+    config_dir = make_config_dir(DEV_PROFILE)
+    code, out, _ = _mon(config_dir, "status", "--format", "json", disk=_FakeDisk(95))
+    payload = json.loads(out)
+    assert code == 0
+    assert payload["check"] == "storage"
+    assert payload["status"] == "problem"
+    assert payload["transition"] == "none"  # first bad check: SUSPECT, no alert yet
+
+
+def test_monitoring_refused_in_production(repo_config_dir: Path) -> None:
+    out, err = io.StringIO(), io.StringIO()
+    code = cli.main(
+        [
+            "monitoring",
+            "status",
+            "--env",
+            "production",
+            "--profile",
+            str(repo_config_dir / "app" / "production.example.yaml"),
+        ],
+        out=out,
+        err=err,
+    )
+    assert code == 1 and "development-only" in err.getvalue()
+
+
+def test_monitoring_config_load_error_exits_2(make_config_dir: MakeConfigDir) -> None:
+    config_dir = make_config_dir(
+        DEV_PROFILE, **{"monitoring__monitoring.yaml": "schema_version: 2\n"}
+    )
+    code, _, err = _mon(config_dir, "status")
+    assert code == 2 and "configuration error" in err
+
+
+def test_monitoring_unresolved_tmp_dir_is_refused(make_config_dir: MakeConfigDir) -> None:
+    text = DEV_PROFILE.replace("tmp_dir: .local/tmp", 'tmp_dir: "<<AUDIT:paths.tmp_dir>>"')
+    code, _, err = _mon(make_config_dir(text), "status")
+    assert code == 1 and "unresolved" in err
+
+
+def test_storage_alert_helper_covers_every_transition() -> None:
+    from home_dns.core.storage import StorageReport as _Report
+    from home_dns.core.storage import ThresholdState as _State
+
+    def report(state: _State) -> _Report:
+        return _Report(
+            checked_at=FIXED_NOW,
+            disk=_DiskUsage(total_bytes=100, used_bytes=50, free_bytes=50),
+            state=state,
+        )
+
+    assert cli._storage_alert(report(_State.HEALTHY), cli.TransitionKind.NONE) is None
+    healthy_opened = cli._storage_alert(report(_State.HEALTHY), cli.TransitionKind.OPENED)
+    assert healthy_opened is None  # defensive: HEALTHY has no event, so OPENED can't reach here
+
+    warning = cli._storage_alert(report(_State.WARNING), cli.TransitionKind.OPENED)
+    assert warning is not None and warning.severity == "warning"
+
+    critical = cli._storage_alert(report(_State.EMERGENCY), cli.TransitionKind.REMINDER)
+    assert critical is not None and critical.severity == "critical"
+
+    recovered = cli._storage_alert(report(_State.HEALTHY), cli.TransitionKind.RECOVERED)
+    assert recovered is not None and recovered.event == "service_recovered"
+
+
+def test_blocklists_update_escalates_after_three_consecutive_kept_previous(
+    make_config_dir: MakeConfigDir,
+) -> None:
+    """Owner-approved ladder (2026-09-13): warning, warning, critical, then reset on success."""
+    config_dir = make_config_dir(DEV_PROFILE)
+    empty = ScriptedFetcher({})
+
+    code, out, _ = _bl(config_dir, "update", "--apply", "--source", "list-a", fetcher=empty)
+    assert code == 1 and "kept_previous" in out and "[critical]" not in out
+
+    code, out, _ = _bl(config_dir, "update", "--apply", "--source", "list-a", fetcher=empty)
+    assert code == 1 and "kept_previous" in out and "[critical]" not in out
+
+    code, out, _ = _bl(config_dir, "update", "--apply", "--source", "list-a", fetcher=empty)
+    assert code == 1 and "kept_previous" in out
+    assert "alert [critical] failed_update: list-a: 3 consecutive" in out
+
+    code, out, _ = _bl(config_dir, "update", "--apply", "--source", "list-a")
+    assert code == 0 and "activated" in out and "[critical] failed_update" not in out
+
+    code, out, _ = _bl(config_dir, "update", "--apply", "--source", "list-a", fetcher=empty)
+    assert code == 1 and "[critical] failed_update" not in out  # counter reset, back to 1st

@@ -119,7 +119,9 @@ def test_cross_reference_errors_are_returned_as_issues(make_config_dir: MakeConf
 
 
 def test_filtering_files_are_excluded_from_generic_scan(make_config_dir: MakeConfigDir) -> None:
-    config_dir = make_config_dir(DEV_PROFILE, storage=False, **{"telegram__alerts.yaml": "a: 1\n"})
+    config_dir = make_config_dir(
+        DEV_PROFILE, storage=False, monitoring=False, **{"telegram__alerts.yaml": "a: 1\n"}
+    )
     scanned = scan_config_tree(config_dir, exclude=filtering_config_files(config_dir))
     assert [s.path.name for s in scanned] == ["alerts.yaml"]
 

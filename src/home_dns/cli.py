@@ -33,15 +33,35 @@ from home_dns.config.loader import (
     resolve_environment,
     scan_config_tree,
 )
+from home_dns.config.monitoring import (
+    MonitoringConfig,
+    load_monitoring_config,
+    monitoring_config_files,
+)
 from home_dns.config.placeholders import Placeholder
 from home_dns.config.readiness import ReadinessReport, evaluate_readiness
 from home_dns.config.settings import Environment
 from home_dns.config.storage import StorageConfig, load_storage_config, storage_config_files
 from home_dns.core.blocklists import ArtifactFormatError, BlockEntry, parse_artifact
 from home_dns.core.domains import InvalidDomainError
+from home_dns.core.monitoring import (
+    CheckResult,
+    CheckStatus,
+    TransitionKind,
+    advance_freshness,
+    advance_incident,
+    freshness_severity,
+)
 from home_dns.core.policy import PolicyEngine, UnknownGroupError
-from home_dns.core.storage import StorageReport, plan_cleanup
-from home_dns.pipeline.blocklists import Outcome, PipelineOptions, SourceReport, run_update
+from home_dns.core.storage import StorageReport, ThresholdState, plan_cleanup
+from home_dns.pipeline.blocklists import (
+    Alert,
+    AlertSeverity,
+    Outcome,
+    PipelineOptions,
+    SourceReport,
+    run_update,
+)
 from home_dns.pipeline.fetch import Fetcher, HttpxFetcher
 from home_dns.providers.base import ProviderError
 from home_dns.providers.mock import MockDnsProvider
@@ -56,6 +76,7 @@ from home_dns.storage.backup import (
 )
 from home_dns.storage.cleanup import execute_cleanup
 from home_dns.storage.disk import DiskUsageProvider, SystemDiskUsage
+from home_dns.storage.monitoring import MonitoringStore
 from home_dns.storage.report import build_storage_report
 
 EXIT_OK = 0
@@ -150,6 +171,17 @@ def _build_parser() -> argparse.ArgumentParser:
     _add_config_arguments(restore)
     restore.add_argument("name", help="backup name, e.g. backup-20260914T120000Z")
     restore.add_argument("--apply", action="store_true", help="perform the restore")
+
+    monitoring = commands.add_parser("monitoring", help="incident monitoring (development only)")
+    monitoring_actions = monitoring.add_subparsers(dest="monitoring_command", required=True)
+    mstatus = monitoring_actions.add_parser(
+        "status", help="run the storage check through the incident state machine"
+    )
+    _add_config_arguments(mstatus)
+    mstatus.add_argument(
+        "--apply", action="store_true", help="persist the observed incident state"
+    )
+    mstatus.add_argument("--format", choices=["text", "json"], default="text")
     return parser
 
 
@@ -171,6 +203,8 @@ class _Outcome:
     strict: bool
     storage: StorageConfig | None = None
     storage_error: str | None = None
+    monitoring: MonitoringConfig | None = None
+    monitoring_error: str | None = None
 
     @property
     def filtering_ok(self) -> bool:
@@ -183,8 +217,17 @@ class _Outcome:
         return self.storage_error is None and self.storage is not None
 
     @property
+    def monitoring_ok(self) -> bool:
+        return self.monitoring_error is None and self.monitoring is not None
+
+    @property
     def ready(self) -> bool:
-        return self.report.is_ready(strict=self.strict) and self.filtering_ok and self.storage_ok
+        return (
+            self.report.is_ready(strict=self.strict)
+            and self.filtering_ok
+            and self.storage_ok
+            and self.monitoring_ok
+        )
 
     @property
     def load_failed(self) -> bool:
@@ -194,6 +237,7 @@ class _Outcome:
         return (
             broken_filtering
             or self.storage_error is not None
+            or self.monitoring_error is not None
             or any(scan.error for scan in self.scans)
         )
 
@@ -251,6 +295,23 @@ def _print_text(outcome: _Outcome, out: TextIO) -> None:
             file=out,
         )
 
+    print("\nMonitoring configuration:", file=out)
+    if outcome.monitoring_error is not None:
+        print(f"  error   {outcome.monitoring_error}", file=out)
+    elif outcome.monitoring is not None:
+        i, b = outcome.monitoring.incident, outcome.monitoring.restart_budget
+        print(
+            f"  incident: incident_after={i.incident_after} recovered_after={i.recovered_after}"
+            f" cooldown={i.cooldown_seconds:g}s",
+            file=out,
+        )
+        print(
+            f"  restart_budget: max_attempts={b.max_attempts}"
+            f" base_delay={b.base_delay_seconds:g}s max_delay={b.max_delay_seconds:g}s"
+            f" factor={b.backoff_factor:g}",
+            file=out,
+        )
+
     print("\nOther config files (no schema yet):", file=out)
     for scan in outcome.scans:
         if scan.error:
@@ -266,6 +327,7 @@ def _print_text(outcome: _Outcome, out: TextIO) -> None:
         + filtering_errors
         + (outcome.filtering_error is not None)
         + (outcome.storage_error is not None)
+        + (outcome.monitoring_error is not None)
     )
     warnings = len(report.warnings) + filtering_warnings
     verdict = "READY" if outcome.ready else "NOT READY"
@@ -303,6 +365,13 @@ def _print_json(outcome: _Outcome, out: TextIO) -> None:
             "thresholds": (outcome.storage.thresholds.model_dump() if outcome.storage else None),
             "retention": (outcome.storage.retention.model_dump() if outcome.storage else None),
         },
+        "monitoring": {
+            "error": outcome.monitoring_error,
+            "incident": (outcome.monitoring.incident.model_dump() if outcome.monitoring else None),
+            "restart_budget": (
+                outcome.monitoring.restart_budget.model_dump() if outcome.monitoring else None
+            ),
+        },
         "config_files": [
             {"path": str(s.path), "placeholders": list(s.placeholders), "error": s.error}
             for s in outcome.scans
@@ -336,11 +405,31 @@ def _validate_config(
     except ConfigLoadError as exc:
         storage_error = str(exc)
 
-    exclude = [*filtering_config_files(config_dir), *storage_config_files(config_dir)]
+    monitoring: MonitoringConfig | None = None
+    monitoring_error: str | None = None
+    try:
+        monitoring = load_monitoring_config(config_dir)
+    except ConfigLoadError as exc:
+        monitoring_error = str(exc)
+
+    exclude = [
+        *filtering_config_files(config_dir),
+        *storage_config_files(config_dir),
+        *monitoring_config_files(config_dir),
+    ]
     scans = scan_config_tree(config_dir, exclude=exclude) if config_dir.is_dir() else []
 
     outcome = _Outcome(
-        config, report, scans, filtering, filtering_error, args.strict, storage, storage_error
+        config,
+        report,
+        scans,
+        filtering,
+        filtering_error,
+        args.strict,
+        storage,
+        storage_error,
+        monitoring,
+        monitoring_error,
     )
     (_print_json if args.format == "json" else _print_text)(outcome, out)
     if outcome.load_failed:
@@ -462,6 +551,23 @@ def _blocklists(
         test_provider_factory=MockDnsProvider,
         options=options,
     )
+    mon_store = MonitoringStore(config.resolve(data_dir) / "monitoring")
+    for report in reports:
+        counter = advance_freshness(
+            mon_store.load_freshness(report.source_id),
+            kept_previous=report.outcome is Outcome.KEPT_PREVIOUS,
+        )
+        mon_store.save_freshness(counter, dry_run=options.dry_run)
+        severity = freshness_severity(counter.consecutive_kept_previous)
+        if severity == "critical":
+            report.alerts.append(
+                Alert(
+                    "critical",
+                    "failed_update",
+                    f"{report.source_id}: {counter.consecutive_kept_previous} consecutive"
+                    " updates kept the previous artifact",
+                )
+            )
     if args.format == "json":
         json.dump([r.to_dict() for r in reports], out, indent=2, default=str)
         out.write("\n")
@@ -802,6 +908,114 @@ def _storage(
     return EXIT_LOAD_ERROR  # unreachable: argparse enforces storage_command choices
 
 
+def _storage_alert(report: StorageReport, transition: TransitionKind) -> Alert | None:
+    """Map a storage-check transition to the existing config/telegram/alerts.yaml catalog."""
+    if transition is TransitionKind.RECOVERED:
+        return Alert("info", "service_recovered", "storage: back within healthy thresholds")
+    if transition in (TransitionKind.OPENED, TransitionKind.REMINDER):
+        if report.event is None:
+            return None
+        severity: AlertSeverity = (
+            "critical" if report.state is ThresholdState.EMERGENCY else "warning"
+        )
+        return Alert(
+            severity,
+            report.event,
+            f"storage: {report.disk.used_percent:g}% used, state={report.state.value}",
+        )
+    return None
+
+
+def _monitoring(
+    args: argparse.Namespace,
+    out: TextIO,
+    err: TextIO,
+    now: Callable[[], datetime],
+    disk: DiskUsageProvider | None = None,
+) -> int:
+    try:
+        config, config_dir = _load(args)
+        storage_config = load_storage_config(config_dir)
+        monitoring_config = load_monitoring_config(config_dir)
+    except ConfigLoadError as exc:
+        print(f"configuration error: {exc}", file=err)
+        return EXIT_LOAD_ERROR
+    if config.environment is Environment.PRODUCTION:
+        print(
+            "monitoring commands are development-only until production activation (phase C3)",
+            file=err,
+        )
+        return EXIT_NOT_READY
+
+    paths = _resolved_paths(config)
+    if paths is None:
+        print("one or more paths.* settings are unresolved placeholders", file=err)
+        return EXIT_NOT_READY
+    data_dir, log_dir, backup_dir, tmp_dir = (
+        paths["data_dir"],
+        paths["log_dir"],
+        paths["backup_dir"],
+        paths["tmp_dir"],
+    )
+    store = ArtifactStore(data_dir / "blocklists")
+    artifact_source_ids = _load_artifact_source_ids(config_dir, now())
+    disk_provider = disk or SystemDiskUsage()
+    mon_store = MonitoringStore(data_dir / "monitoring")
+
+    if args.monitoring_command == "status":
+        report = build_storage_report(
+            root=data_dir,
+            categories={"data": data_dir, "logs": log_dir, "backups": backup_dir, "tmp": tmp_dir},
+            disk=disk_provider,
+            thresholds=storage_config.thresholds,
+            backup_dir=backup_dir,
+            artifact_store=store,
+            artifact_sources=artifact_source_ids,
+            tmp_dir=tmp_dir,
+            now=now(),
+        )
+        status = CheckStatus.OK if report.state is ThresholdState.HEALTHY else CheckStatus.PROBLEM
+        result = CheckResult(name="storage", status=status, detail=f"state={report.state.value}")
+        previous = mon_store.load_incident("storage")
+        incident, transition = advance_incident(
+            previous, result, policy=monitoring_config.incident, now=now()
+        )
+        mon_store.save_incident(incident, dry_run=not args.apply)
+        alert = _storage_alert(report, transition)
+
+        if args.format == "json":
+            json.dump(
+                {
+                    "check": "storage",
+                    "status": status.value,
+                    "incident_state": incident.state.value,
+                    "transition": transition.value,
+                    "consecutive_problem": incident.consecutive_problem,
+                    "consecutive_ok": incident.consecutive_ok,
+                    "alert": (
+                        {"severity": alert.severity, "event": alert.event, "message": alert.message}
+                        if alert
+                        else None
+                    ),
+                },
+                out,
+                indent=2,
+            )
+            out.write("\n")
+        else:
+            suffix = "" if args.apply else " (dry-run: not persisted)"
+            print(
+                f"storage: check={status.value} incident={incident.state.value}"
+                f" transition={transition.value}{suffix}",
+                file=out,
+            )
+            if alert:
+                print(f"  alert [{alert.severity}] {alert.event}: {alert.message}", file=out)
+        return EXIT_OK
+
+    return EXIT_LOAD_ERROR  # unreachable: argparse enforces monitoring_command choices
+
+
 def main(
     argv: Sequence[str] | None = None,
     *,
@@ -823,6 +1037,8 @@ def main(
         return _policy_explain(args, out, err, clock)
     if args.command == "storage":
         return _storage(args, out, err, clock, disk)
+    if args.command == "monitoring":
+        return _monitoring(args, out, err, clock, disk)
     return _serve(args, err)
 
 
