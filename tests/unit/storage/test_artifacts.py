@@ -225,3 +225,90 @@ def test_state_files_without_backup_key_are_still_readable(tmp_path: Path) -> No
     assert store.state("list-a").backup is None
     store.activate("list-a", VERSIONS[2], {}, dry_run=False)
     assert store.state("list-a").backup == sha256_text(VERSIONS[0])
+
+
+# --------------------------------------------------------------- A4: reconcile (orphan pruning)
+
+
+def test_reconcile_empty_store_is_a_no_op(tmp_path: Path) -> None:
+    store = ArtifactStore(tmp_path)
+    result = store.reconcile("list-a", dry_run=False)
+    assert result.pruned == () and result.before == result.after
+
+
+def test_reconcile_never_removes_current_previous_or_backup(tmp_path: Path) -> None:
+    store = ArtifactStore(tmp_path)
+    for text in (V1, V2):
+        store.activate("list-a", text, {}, dry_run=False)
+    before_state = store.state("list-a")
+    result = store.reconcile("list-a", dry_run=False)
+    assert result.pruned == ()
+    assert store.state("list-a") == before_state
+    for sha in before_state.retained():
+        store.read("list-a", sha)  # still intact
+
+
+def test_reconcile_removes_orphaned_leftover_files(tmp_path: Path) -> None:
+    store = ArtifactStore(tmp_path)
+    store.activate("list-a", V1, {}, dry_run=False)
+    directory = tmp_path / "list-a" / "artifacts"
+    orphan_sha = "a" * 64
+    (directory / f"{orphan_sha}.txt").write_text("orphaned content\n")
+    (directory / f"{orphan_sha}.json").write_text("{}")
+    leftover_tmp = directory / f".{orphan_sha}.txt.tmp"
+    leftover_tmp.write_text("partial")
+
+    dry = store.reconcile("list-a", dry_run=True)
+    assert set(dry.pruned) == {f"{orphan_sha}.txt", f"{orphan_sha}.json", leftover_tmp.name}
+    assert (directory / f"{orphan_sha}.txt").exists()  # dry-run touched nothing
+
+    applied = store.reconcile("list-a", dry_run=False)
+    assert set(applied.pruned) == set(dry.pruned)
+    assert not (directory / f"{orphan_sha}.txt").exists()
+    assert store.current("list-a") is not None  # current artifact untouched
+
+
+def test_reconcile_does_not_change_state_and_is_idempotent(tmp_path: Path) -> None:
+    store = ArtifactStore(tmp_path)
+    store.activate("list-a", V1, {}, dry_run=False)
+    store.activate("list-a", V2, {}, dry_run=False)
+    directory = tmp_path / "list-a" / "artifacts"
+    (directory / f"{'b' * 64}.txt").write_text("orphan\n")
+
+    state_before = store.state("list-a")
+    store.reconcile("list-a", dry_run=False)
+    assert store.state("list-a") == state_before
+    second = store.reconcile("list-a", dry_run=False)
+    assert second.pruned == ()  # idempotent: nothing left to prune
+
+
+def test_reconcile_preserves_rollback_capability(tmp_path: Path) -> None:
+    store = ArtifactStore(tmp_path)
+    store.activate("list-a", V1, {}, dry_run=False)
+    store.activate("list-a", V2, {}, dry_run=False)
+    store.reconcile("list-a", dry_run=False)
+    store.rollback("list-a", dry_run=False)
+    restored = store.current("list-a")
+    assert restored is not None and restored.text == V1
+
+
+def test_interrupted_reconcile_leaves_referenced_artifacts_intact(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    store = ArtifactStore(tmp_path)
+    for text in (V1, V2):
+        store.activate("list-a", text, {}, dry_run=False)
+    directory = tmp_path / "list-a" / "artifacts"
+    (directory / f"{'c' * 64}.txt").write_text("orphan\n")
+    state_before = store.state("list-a")
+
+    def crash(self: Path, missing_ok: bool = False) -> None:
+        raise PermissionError("simulated crash mid-prune")
+
+    monkeypatch.setattr(Path, "unlink", crash)
+    store.reconcile("list-a", dry_run=False)  # errors are swallowed per-file, never propagate
+    monkeypatch.undo()
+
+    assert store.state("list-a") == state_before
+    for sha in state_before.retained():
+        store.read("list-a", sha)  # every referenced artifact is still fully intact

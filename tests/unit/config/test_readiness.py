@@ -40,6 +40,7 @@ def test_committed_production_example_is_not_ready(repo_config_dir: Path) -> Non
         "paths.data_dir": Status.MISSING_AUDIT,
         "paths.log_dir": Status.MISSING_AUDIT,
         "paths.backup_dir": Status.MISSING_AUDIT,
+        "paths.tmp_dir": Status.MISSING_AUDIT,
         "dns_provider.pihole_v6.base_url": Status.MISSING_AUDIT,
         "api.bind_host": Status.MISSING_AUDIT,
         "api.port": Status.MISSING_REQUIRED,
@@ -68,6 +69,7 @@ def test_production_rejects_dev_only_values(
     assert errors == {
         "paths.data_dir": Status.DEV_ONLY,
         "paths.backup_dir": Status.DEV_ONLY,
+        "paths.tmp_dir": Status.DEV_ONLY,
         "dns_provider.kind": Status.DEV_ONLY,
     }
 

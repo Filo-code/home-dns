@@ -58,6 +58,7 @@ paths:
   data_dir: .local/data
   log_dir: .local/logs
   backup_dir: .local/backups
+  tmp_dir: .local/tmp
 dns_provider:
   kind: mock
   mock:
@@ -73,6 +74,7 @@ paths:
   data_dir: /srv/home-dns/data
   log_dir: /srv/home-dns/logs
   backup_dir: /srv/home-dns/backups
+  tmp_dir: /srv/home-dns/tmp
 dns_provider:
   kind: pihole_v6
   pihole_v6:
@@ -131,21 +133,49 @@ domains:
 """,
 }
 
+# Minimal valid storage configuration (A4). Same thresholds/shape as the repo's own file.
+STORAGE_FILES: dict[str, str] = {
+    "storage__storage.yaml": """\
+schema_version: 1
+disk_usage_thresholds_percent:
+  healthy_below: 70
+  warning_from: 70
+  auto_cleanup_from: 80
+  emergency_from: 90
+retention:
+  logs_max_bytes: 10485760
+  logs_backup_count: 5
+  temp_max_age_hours: 24
+  backups_keep: 7
+  query_history_days: 30
+""",
+}
+
 
 @pytest.fixture
 def make_config_dir(tmp_path: Path) -> Callable[..., Path]:
-    """Create <tmp>/config with app/<env>.yaml, a valid filtering set and optional extra files.
+    """Create <tmp>/config with app/<env>.yaml, valid filtering/storage sets and optional extras.
 
-    Pass ``filtering=False`` to omit the filtering files; extra files override defaults.
+    Pass ``filtering=False`` / ``storage=False`` to omit those default file sets; extra files
+    override defaults of either set.
     """
 
     def factory(
-        profile_text: str, env: str = "development", *, filtering: bool = True, **extra_files: str
+        profile_text: str,
+        env: str = "development",
+        *,
+        filtering: bool = True,
+        storage: bool = True,
+        **extra_files: str,
     ) -> Path:
         config_dir = tmp_path / "config"
         (config_dir / "app").mkdir(parents=True, exist_ok=True)
         (config_dir / "app" / f"{env}.yaml").write_text(profile_text, encoding="utf-8")
-        files = {**(FILTERING_FILES if filtering else {}), **extra_files}
+        files = {
+            **(FILTERING_FILES if filtering else {}),
+            **(STORAGE_FILES if storage else {}),
+            **extra_files,
+        }
         for relative, text in files.items():
             target = config_dir / relative.replace("__", "/")
             target.parent.mkdir(parents=True, exist_ok=True)

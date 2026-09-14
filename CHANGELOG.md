@@ -54,6 +54,27 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Dates are ISO 
 - 2026-09-13 — CLI `home-dns blocklists update|status|rollback`; `scripts/blocklists/measure_sources.py`; `network`-marked real-list test.
 - 2026-09-13 — Source schema: `max_age_hours` (48 for both HaGeZi lists) and optional `sanity` limits.
 
+### Added — A4 storage and maintenance
+- 2026-09-14 — Design `docs/specs/a4-storage-maintenance.md`, ADR 0007, docs `storage.md` /
+  `maintenance.md` / `backups.md` / `restore.md`.
+- 2026-09-14 — `core.storage`: disk-usage thresholds (owner-approved 70/80/90 bands), pure
+  `classify_usage`, retention policy, cleanup planning, `StorageReport` (the interface A5
+  monitoring is expected to consume).
+- 2026-09-14 — `paths.tmp_dir` added alongside the existing `data_dir`/`log_dir`/`backup_dir`.
+- 2026-09-14 — `storage.artifacts.ArtifactStore.reconcile()`: prunes orphaned blocklist-artifact
+  files without activating anything (purely additive; A2 retention unchanged).
+- 2026-09-14 — `storage.sqlite` extended: online-backup-API database snapshots, `quick_check`/
+  `integrity_check`, `wal_checkpoint`, and `VACUUM` (implemented, never called automatically —
+  enforced by a regression test).
+- 2026-09-14 — New modules `storage.disk`, `storage.tempfiles` (safe, non-recursive, symlink- and
+  traversal-refusing sweep), `storage.logs` (size x count bounded rotation), `storage.backup`
+  (checksummed, atomically-published, versioned backups with the newest-valid-never-pruned
+  guarantee), `storage.report`, `storage.cleanup`.
+- 2026-09-14 — `config/storage.py` loader for `config/storage/storage.yaml` (schema-owned,
+  same pattern as `config/filtering.py`).
+- 2026-09-14 — CLI: `home-dns storage status|cleanup|verify|backup|restore`, dry-run by default.
+- 2026-09-14 — Tests: 119 new (831 total), coverage 97.39%.
+
 ### Added — A3 filtering policy
 - 2026-09-14 — Design `docs/specs/a3-filtering-policy.md`, ADR 0009, evaluation report `docs/research/2026-09-14-a3-policy-evaluation.md`.
 - 2026-09-14 — `core.policy.PolicyEngine`: pure decision for group + domain, with Pi-hole-compatible precedence and explanations.

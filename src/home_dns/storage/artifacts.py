@@ -190,3 +190,25 @@ class ArtifactStore:
         if not dry_run:
             self._write_state(source_id, after)
         return StoreChange(dry_run, source_id, before, after, wrote_artifact=False)
+
+    def reconcile(self, source_id: str, *, dry_run: bool = True) -> StoreChange:
+        """Prune anything not referenced by the current on-disk state, without activating anything.
+
+        A4 addition (purely additive): closes the one gap ``activate()`` leaves open — orphaned
+        artifact/temp files from an interrupted run, for a source that is never updated again,
+        would otherwise sit until the next successful activation. Reuses the exact same
+        ``_prunable``/``_prune`` internals as ``activate()``, so there is no new deletion logic.
+        The state itself never changes: ``before == after`` always.
+        """
+        state = self.state(source_id)
+        prunable = self._prunable(source_id, keep=state.retained())
+        if not dry_run:
+            self._prune(prunable)
+        return StoreChange(
+            dry_run,
+            source_id,
+            state,
+            state,
+            wrote_artifact=False,
+            pruned=tuple(p.name for p in prunable),
+        )

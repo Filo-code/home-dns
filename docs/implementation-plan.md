@@ -135,7 +135,7 @@ ADR 0001 gates G1–G5 still block Stage C. Gate G6 still blocks device-policy r
   - exception precedence tests
 - **Depends on:** A1, A2
 
-### A4 — Storage and maintenance
+### A4 — Storage and maintenance ✅ (done 2026-09-14, see [ADR 0007](adr/0007-storage-strategy.md))
 - **Goal:** never fill the disk, never lose configuration, keep SD-card writes as low as practical.
 - **Deliverables:**
   - **`storage_guard`:** under 70% healthy · 70–80% warning · 80–90% automatic cleanup · over 90% emergency cleanup + critical alert

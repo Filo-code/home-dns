@@ -11,6 +11,7 @@ paths:
   data_dir: "<<AUDIT:paths.data_dir>>"      # microSD vs USB SSD, ADR 0007
   log_dir: "<<AUDIT:paths.log_dir>>"
   backup_dir: "<<AUDIT:paths.backup_dir>>"
+  tmp_dir: "<<AUDIT:paths.tmp_dir>>"        # ideally tmpfs, decided in Stage C (ADR 0007)
 
 dns_provider:
   kind: pihole_v6

@@ -40,6 +40,7 @@ class PathsSettings(_Section):
     data_dir: Deferred[Path]
     log_dir: Deferred[Path]
     backup_dir: Deferred[Path]
+    tmp_dir: Deferred[Path]
 
 
 class MockProviderSettings(_Section):

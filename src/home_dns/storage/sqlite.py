@@ -6,6 +6,7 @@ Journal/sync tuning for SD-card wear is decided in ADR 0007 (A4).
 
 from __future__ import annotations
 
+import os
 import sqlite3
 from collections.abc import Sequence
 from dataclasses import dataclass
@@ -95,6 +96,85 @@ def apply_migrations(
     return MigrationReport(
         dry_run=False, current_version=current, pending=pending, applied=tuple(applied)
     )
+
+
+@dataclass(frozen=True)
+class DatabaseBackupResult:
+    dry_run: bool
+    destination: Path
+    page_count: int
+
+
+def backup_database(
+    source: sqlite3.Connection, destination: Path, *, dry_run: bool = True
+) -> DatabaseBackupResult:
+    """Hot-copy a live database using the online backup API (safe under WAL; a raw file copy is
+    not, since it can capture an inconsistent snapshot mid-write). Writes to a temp file first and
+    publishes with one atomic rename, so an interrupted backup can never look complete.
+    """
+    page_count = source.execute("PRAGMA page_count").fetchone()[0]
+    if dry_run:
+        return DatabaseBackupResult(dry_run=True, destination=destination, page_count=page_count)
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    tmp = destination.with_name(f".{destination.name}.backup.tmp")
+    tmp.unlink(missing_ok=True)
+    target = sqlite3.connect(tmp)
+    try:
+        source.backup(target)
+    finally:
+        target.close()
+    os.replace(tmp, destination)
+    return DatabaseBackupResult(dry_run=False, destination=destination, page_count=page_count)
+
+
+@dataclass(frozen=True)
+class IntegrityResult:
+    ok: bool
+    messages: tuple[str, ...]
+
+
+def check_integrity(connection: sqlite3.Connection, *, quick: bool = True) -> IntegrityResult:
+    """``quick_check`` by default: catches structural corruption without the full page-by-page
+    scan cost of ``integrity_check``, which matters on SD-card I/O. Pass quick=False for the
+    thorough check when that cost is acceptable (e.g. a manual, infrequent maintenance run).
+    """
+    pragma = "quick_check" if quick else "integrity_check"
+    try:
+        rows = connection.execute(f"PRAGMA {pragma}").fetchall()
+    except sqlite3.DatabaseError as exc:
+        # A badly corrupted file can make even reading the pragma result fail outright; that is
+        # itself conclusive evidence of corruption, so report it rather than letting it propagate.
+        return IntegrityResult(ok=False, messages=(str(exc),))
+    messages = tuple(row[0] for row in rows)
+    return IntegrityResult(ok=messages == ("ok",), messages=messages)
+
+
+@dataclass(frozen=True)
+class CheckpointResult:
+    busy: bool
+    log_frames: int
+    checkpointed_frames: int
+
+
+def checkpoint_wal(connection: sqlite3.Connection, *, truncate: bool = False) -> CheckpointResult:
+    """PASSIVE by default: reclaims WAL space without blocking writers. TRUNCATE is more
+    aggressive and is exposed for a deliberate, manually-invoked action only — see
+    docs/specs/a4-storage-maintenance.md §7 for why it is never called automatically.
+    """
+    mode = "TRUNCATE" if truncate else "PASSIVE"
+    busy, log_frames, checkpointed_frames = connection.execute(
+        f"PRAGMA wal_checkpoint({mode})"
+    ).fetchone()
+    return CheckpointResult(bool(busy), log_frames, checkpointed_frames)
+
+
+def vacuum(connection: sqlite3.Connection) -> None:
+    """Rewrites the entire database file. NEVER call this from a scheduled or automatic code
+    path: on a microSD card this is a large, avoidable write-amplification event. It exists only
+    as a rare, deliberate, manually-invoked maintenance primitive — see
+    docs/specs/a4-storage-maintenance.md §7. No caller in this codebase invokes it automatically.
+    """
+    connection.execute("VACUUM")
 
 
 def _split_statements(sql: str) -> list[str]:

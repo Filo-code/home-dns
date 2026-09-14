@@ -16,6 +16,6 @@ Configuration **templates and source-of-truth files** tracked in Git.
 | `protected-domains/` | Domains that must never be blocked, one category per file (entries added in A3) | A1 schema / A3 data |
 | `telegram/` | Alert routing, severities, anti-spam | Phase 13 |
 | `monitoring/` | Health checks and thresholds | Phase 12 |
-| `storage/` | Storage thresholds, retention, paths | Phase 12 |
+| `storage/` | Storage thresholds and retention policy (`storage.yaml`); paths live in `config/app/<env>.yaml` | A4 |
 
 Secrets never go in this directory. Use `.env` (see `.env.example`).

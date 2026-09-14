@@ -11,7 +11,7 @@ ADRs are never deleted. A changed decision is recorded in a **new** ADR that sup
 | [0004](0004-blocklist-pipeline.md) | Blocklist pipeline | Accepted |
 | 0005 | Backend and dashboard architecture | Not yet written (A7) |
 | 0006 | Telegram alerting | Not yet written (A6) |
-| 0007 | Storage strategy | Not yet written (A4; paths finalised after B1) |
+| [0007](0007-storage-strategy.md) | Storage and maintenance strategy | Accepted |
 | 0008 | IPv6 strategy | Not yet written (D3, after Fastweb Seven audit) |
 | [0009](0009-filtering-policy.md) | Filtering policy, protected domains and policy engine | Accepted (Light/Normal sanity limits pending approval) |
 

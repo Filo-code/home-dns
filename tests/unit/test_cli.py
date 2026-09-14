@@ -1,7 +1,7 @@
 import io
 import json
 from collections.abc import Callable
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -428,3 +428,182 @@ def test_policy_explain_reports_unreadable_artifact(make_config_dir: MakeConfigD
         artifact.write_text("tampered\n")
     code, out, _ = _explain(config_dir, "--group", "DEFAULT", "a.example")
     assert code == 0 and "unreadable" in out
+
+
+# ------------------------------------------------------------------ A4: storage commands
+
+from home_dns.core.storage import DiskUsage as _DiskUsage  # noqa: E402
+
+
+class _FakeDisk:
+    """Injectable DiskUsageProvider for CLI tests: reports a fixed usage regardless of path."""
+
+    def __init__(self, used_percent: float, total: int = 1_000_000) -> None:
+        used = round(total * used_percent / 100)
+        self._usage = _DiskUsage(total_bytes=total, used_bytes=used, free_bytes=total - used)
+
+    def get(self, path: Path) -> _DiskUsage:
+        return self._usage
+
+
+def _storage(config_dir: Path, *argv: str, disk: _FakeDisk | None = None) -> tuple[int, str, str]:
+    out, err = io.StringIO(), io.StringIO()
+    code = cli.main(
+        ["storage", *argv, "--config-dir", str(config_dir)],
+        out=out,
+        err=err,
+        now=lambda: FIXED_NOW,
+        disk=disk or _FakeDisk(10),
+    )
+    return code, out.getvalue(), err.getvalue()
+
+
+def test_storage_status_reports_disk_state_and_categories(make_config_dir: MakeConfigDir) -> None:
+    config_dir = make_config_dir(DEV_PROFILE)
+    code, out, _ = _storage(config_dir, "status", disk=_FakeDisk(85))
+    assert code == 0
+    assert "state=auto_cleanup" in out
+    assert "category data" in out and "category logs" in out
+
+
+def test_storage_status_json_matches_thresholds(make_config_dir: MakeConfigDir) -> None:
+    config_dir = make_config_dir(DEV_PROFILE)
+    code, out, _ = _storage(config_dir, "status", "--format", "json", disk=_FakeDisk(95))
+    payload = json.loads(out)
+    assert code == 0
+    assert payload["state"] == "emergency"
+    assert payload["disk"]["used_bytes"] > 0
+
+
+def test_storage_status_shows_artifact_counts_after_update(make_config_dir: MakeConfigDir) -> None:
+    config_dir = make_config_dir(DEV_PROFILE)
+    assert _bl(config_dir, "update", "--apply")[0] == 0
+    code, out, _ = _storage(config_dir, "status")
+    assert code == 0
+    assert "blocklist artifacts" in out and "list-a=1" in out
+
+
+def test_storage_cleanup_is_dry_run_by_default(make_config_dir: MakeConfigDir) -> None:
+    config_dir = make_config_dir(DEV_PROFILE)
+    tmp_dir = config_dir.parent / ".local" / "tmp"
+    tmp_dir.mkdir(parents=True)
+    old_file = tmp_dir / "old.tmp"
+    old_file.write_bytes(b"x")
+    old_ts = (FIXED_NOW - timedelta(hours=48)).timestamp()
+    __import__("os").utime(old_file, (old_ts, old_ts))
+
+    code, out, _ = _storage(config_dir, "cleanup", disk=_FakeDisk(85))
+    assert code == 0 and "(dry-run)" in out and "removed: old.tmp" in out
+    assert old_file.exists()
+
+
+def test_storage_cleanup_apply_removes_old_temp_files(make_config_dir: MakeConfigDir) -> None:
+    config_dir = make_config_dir(DEV_PROFILE)
+    tmp_dir = config_dir.parent / ".local" / "tmp"
+    tmp_dir.mkdir(parents=True)
+    old_file = tmp_dir / "old.tmp"
+    old_file.write_bytes(b"x")
+    old_ts = (FIXED_NOW - timedelta(hours=48)).timestamp()
+    __import__("os").utime(old_file, (old_ts, old_ts))
+
+    code, out, _ = _storage(config_dir, "cleanup", "--apply", disk=_FakeDisk(85))
+    assert code == 0 and "(dry-run)" not in out
+    assert not old_file.exists()
+
+
+def test_storage_cleanup_healthy_state_does_nothing(make_config_dir: MakeConfigDir) -> None:
+    config_dir = make_config_dir(DEV_PROFILE)
+    code, out, _ = _storage(config_dir, "cleanup", "--apply", disk=_FakeDisk(10))
+    assert code == 0 and "state=healthy action=none" in out
+
+
+def test_storage_backup_and_restore_round_trip(make_config_dir: MakeConfigDir) -> None:
+    config_dir = make_config_dir(DEV_PROFILE)
+    original = (config_dir / "groups" / "groups.yaml").read_text()
+    code, out, _ = _storage(config_dir, "backup", "--apply")
+    assert code == 0 and "backup-" in out
+    name = out.split(":")[0]
+
+    # Corrupt a non-loaded file (not app/development.yaml, which _storage's own _load() needs
+    # to succeed just to run the restore command).
+    (config_dir / "groups" / "groups.yaml").write_text("tampered: true\n")
+    code, out, _ = _storage(config_dir, "restore", name, "--apply")
+    assert code == 0 and "file(s) restored" in out
+    assert (config_dir / "groups" / "groups.yaml").read_text() == original
+
+
+def test_storage_backup_dry_run_writes_nothing(make_config_dir: MakeConfigDir) -> None:
+    config_dir = make_config_dir(DEV_PROFILE)
+    backup_dir = config_dir.parent / ".local" / "backups"
+    code, _, _ = _storage(config_dir, "backup")
+    assert code == 0
+    assert not backup_dir.exists()
+
+
+def test_storage_restore_unknown_backup_is_refused(make_config_dir: MakeConfigDir) -> None:
+    config_dir = make_config_dir(DEV_PROFILE)
+    code, _, err = _storage(config_dir, "restore", "backup-20000101T000000Z", "--apply")
+    assert code == 1 and "restore refused" in err
+
+
+def test_storage_verify_ok_with_no_backups_or_artifacts(make_config_dir: MakeConfigDir) -> None:
+    config_dir = make_config_dir(DEV_PROFILE)
+    code, out, _ = _storage(config_dir, "verify")
+    assert code == 0 and "verify: ok" in out
+
+
+def test_storage_verify_detects_tampered_backup(make_config_dir: MakeConfigDir) -> None:
+    config_dir = make_config_dir(DEV_PROFILE)
+    _storage(config_dir, "backup", "--apply")
+    backup_dir = config_dir.parent / ".local" / "backups"
+    [backup] = list(backup_dir.iterdir())
+    manifest = json.loads((backup / "manifest.json").read_text())
+    entry = manifest["entries"][0]
+    tampered_file = backup / entry["source"] / entry["path"]
+    tampered_file.write_text("corrupted\n")
+
+    code, out, _ = _storage(config_dir, "verify", "--format", "json")
+    payload = json.loads(out)
+    assert code == 1 and not payload["ok"]
+    assert any("mismatch" in p for p in payload["problems"])
+
+
+def test_storage_verify_detects_corrupted_artifact(make_config_dir: MakeConfigDir) -> None:
+    config_dir = make_config_dir(DEV_PROFILE)
+    assert _bl(config_dir, "update", "--apply")[0] == 0
+    artifacts_dir = config_dir.parent / ".local" / "data" / "blocklists" / "list-a" / "artifacts"
+    [artifact] = list(artifacts_dir.glob("*.txt"))
+    artifact.write_text("tampered\n")
+
+    code, out, _ = _storage(config_dir, "verify")
+    assert code == 1 and "artifact list-a/current" in out
+
+
+def test_storage_refused_in_production(repo_config_dir: Path) -> None:
+    out, err = io.StringIO(), io.StringIO()
+    code = cli.main(
+        [
+            "storage",
+            "status",
+            "--env",
+            "production",
+            "--profile",
+            str(repo_config_dir / "app" / "production.example.yaml"),
+        ],
+        out=out,
+        err=err,
+    )
+    assert code == 1 and "development-only" in err.getvalue()
+
+
+def test_storage_unresolved_tmp_dir_is_refused(make_config_dir: MakeConfigDir) -> None:
+    text = DEV_PROFILE.replace("tmp_dir: .local/tmp", 'tmp_dir: "<<AUDIT:paths.tmp_dir>>"')
+    config_dir = make_config_dir(text)
+    code, _, err = _storage(config_dir, "status")
+    assert code == 1 and "unresolved" in err
+
+
+def test_storage_config_load_error_exits_2(make_config_dir: MakeConfigDir) -> None:
+    config_dir = make_config_dir(DEV_PROFILE, **{"storage__storage.yaml": "schema_version: 2\n"})
+    code, _, err = _storage(config_dir, "status")
+    assert code == 2 and "configuration error" in err

@@ -1,14 +1,27 @@
-# Storage policy — TEMPLATE (not deployed)
-# Thresholds and retention target come from CLAUDE.md §16. Paths are decided after the Raspberry Pi audit (§17).
-
+# Storage policy (ADR 0007, A4). Values are configurable here, never hard-coded in application
+# code (src/home_dns/core/storage.py reads them as plain parameters).
+#
+# Thresholds are percent-of-filesystem-used bands (CLAUDE.md §16), owner-approved:
+#   < warning_from                    healthy    — no action
+#   [warning_from, auto_cleanup_from) warning    — observe and report only
+#   [auto_cleanup_from, emergency_from) auto_cleanup — routine cleanup (temp sweep, backup
+#                                                       retention, blocklist-artifact reconcile)
+#   >= emergency_from                 emergency  — same as auto_cleanup, more aggressively, plus
+#                                                   a critical Telegram alert (A5/A6)
+#
+# `current` blocklist artifacts and the live database are never touched by any cleanup band.
 schema_version: 1
 
 disk_usage_thresholds_percent:
   healthy_below: 70
   warning_from: 70
   auto_cleanup_from: 80
-  emergency_cleanup_and_alert_above: 90
+  emergency_from: 90
 
-query_retention_days_target: 30   # "approximately 30 days — adjust if technically justified"
-
-# Filesystem paths are application settings: see config/app/<env>.yaml (paths.*).
+retention:
+  logs_max_bytes: 10485760    # 10 MiB per log file before rotation
+  logs_backup_count: 5        # -> 50 MiB bound per log stream (size x count, not day-based)
+  temp_max_age_hours: 24      # files in paths.tmp_dir older than this are swept
+  backups_keep: 7             # newest N backups kept; the single newest valid one is never pruned
+  query_history_days: 30      # "approximately 30 days" (CLAUDE.md §16); enforced once A7 has a
+                               # query-history table — this is the policy value it will read
