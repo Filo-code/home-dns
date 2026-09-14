@@ -585,6 +585,8 @@ def _print_storage_report(report: StorageReport, out: TextIO) -> None:
     if report.artifact_counts:
         counts = ", ".join(f"{k}={v}" for k, v in report.artifact_counts.items())
         print(f"  blocklist artifacts: {counts}", file=out)
+    if not report.tmp_dir_usable:
+        print("  warning: tmp_dir is missing or not writable (tmpfs unmounted?)", file=out)
 
 
 def _storage(
@@ -630,6 +632,7 @@ def _storage(
             backup_dir=backup_dir,
             artifact_store=store,
             artifact_sources=artifact_source_ids,
+            tmp_dir=tmp_dir,
             now=now(),
         )
         if args.format == "json":
@@ -648,6 +651,7 @@ def _storage(
             backup_dir=backup_dir,
             artifact_store=store,
             artifact_sources=artifact_source_ids,
+            tmp_dir=tmp_dir,
             now=now(),
         )
         plan = plan_cleanup(report.state)
@@ -743,11 +747,15 @@ def _storage(
                     sources["database"] = db_snapshot_dir
             finally:
                 connection.close()
-        backup_result = create_backup(sources, backup_dir, now=now(), dry_run=not args.apply)
-        if db_snapshot_dir is not None and db_snapshot_dir.exists():
-            import shutil as _shutil
+        try:
+            backup_result = create_backup(sources, backup_dir, now=now(), dry_run=not args.apply)
+        finally:
+            # Always reclaim the disposable staging snapshot, even if create_backup raised
+            # (e.g. a same-second name collision) — it must never outlive this command.
+            if db_snapshot_dir is not None and db_snapshot_dir.exists():
+                import shutil as _shutil
 
-            _shutil.rmtree(db_snapshot_dir, ignore_errors=True)
+                _shutil.rmtree(db_snapshot_dir, ignore_errors=True)
         if not args.apply:
             prune_preview = prune_backups(backup_dir, keep=storage_config.retention.backups_keep)
         else:

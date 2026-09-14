@@ -155,6 +155,7 @@ class StorageReport(_Model):
     last_backup_at: datetime | None = None
     backup_count: int = Field(default=0, ge=0)
     artifact_counts: dict[str, int] = Field(default_factory=dict)
+    tmp_dir_usable: bool = True
 
     @property
     def event(self) -> str | None:

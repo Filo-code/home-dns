@@ -106,3 +106,14 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Dates are ISO 
 
 ### Not done (by design)
 - No DNS software installed. No DNS, DHCP, IPv4, IPv6, firewall, router or service changes. No blocklists enabled. No dashboard deployed.
+
+### Added — RAM/tmpfs audit (before A5, 2026-09-14)
+- 2026-09-14 — Focused audit of every disk write in the codebase to decide whether a dedicated
+  RAM-backed temporary-storage subsystem is justified. **Conclusion: no** — `paths.tmp_dir` was
+  already tmpfs-ready by construction; documented in `docs/specs/a4-storage-maintenance.md` §12
+  and ADR 0007's amendment.
+- 2026-09-14 — Two small fixes surfaced by the audit: `storage backup`'s SQLite snapshot staging
+  is now cleaned up even if `create_backup` raises; `StorageReport` gained a non-mutating
+  `tmp_dir_usable` health signal, shown by `storage status`.
+- 2026-09-14 — Tests: 12 new (845 total), coverage 97.80%.
+

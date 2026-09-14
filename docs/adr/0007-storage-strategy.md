@@ -75,3 +75,16 @@ files, backups, or the thresholds themselves.
 - **Nothing in A4 required a Pi, network or production change.** Real filesystem operations were
   exercised only against the development machine's own filesystem, under `tmp_path`/scratch
   directories, in tests.
+
+## Amendment (2026-09-14): RAM/tmpfs audit
+
+Before A5, a focused audit (§12 of the [A4 design doc](../specs/a4-storage-maintenance.md))
+traced every disk write in the codebase to decide whether a dedicated RAM-backed
+temporary-storage subsystem was justified. **Conclusion: no.** `paths.tmp_dir` was already
+tmpfs-ready by construction (point 4 above); pointing it at a tmpfs mount in C-stage needs no
+code change. Two small, narrowly-scoped fixes came directly out of the audit: the SQLite
+hot-backup staging snapshot is now cleaned up even if `create_backup` raises (`cli.py`), and
+`StorageReport` gained a non-mutating `tmp_dir_usable` health signal so a missing or unmounted
+tmpfs is observable by `storage status` and, later, A5 monitoring. No new configuration surface,
+no size-bounding knob and no fallback abstraction were added — see the design doc for why each
+was considered and rejected.

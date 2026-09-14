@@ -81,3 +81,53 @@ def test_report_without_artifact_store_has_empty_counts(tmp_path: Path) -> None:
     )
     assert report.artifact_counts == {}
     assert report.state is ThresholdState.HEALTHY
+
+
+# ------------------------------------------------------------- A4.1 (RAM/tmpfs audit): tmp_dir
+
+
+def test_report_tmp_dir_usable_true_when_present_and_writable(tmp_path: Path) -> None:
+    tmp_dir = tmp_path / "tmp"
+    tmp_dir.mkdir()
+    disk = _FakeDisk(DiskUsage(total_bytes=1000, used_bytes=10, free_bytes=990))
+    report = build_storage_report(
+        root=tmp_path,
+        categories={},
+        disk=disk,
+        thresholds=DEFAULT_THRESHOLDS,
+        backup_dir=tmp_path,
+        artifact_store=None,
+        tmp_dir=tmp_dir,
+        now=NOW,
+    )
+    assert report.tmp_dir_usable is True
+
+
+def test_report_tmp_dir_usable_false_when_missing(tmp_path: Path) -> None:
+    disk = _FakeDisk(DiskUsage(total_bytes=1000, used_bytes=10, free_bytes=990))
+    report = build_storage_report(
+        root=tmp_path,
+        categories={},
+        disk=disk,
+        thresholds=DEFAULT_THRESHOLDS,
+        backup_dir=tmp_path,
+        artifact_store=None,
+        tmp_dir=tmp_path / "unmounted",
+        now=NOW,
+    )
+    assert report.tmp_dir_usable is False
+    assert not (tmp_path / "unmounted").exists()  # checking status never creates it
+
+
+def test_report_tmp_dir_usable_defaults_true_when_not_checked(tmp_path: Path) -> None:
+    disk = _FakeDisk(DiskUsage(total_bytes=1000, used_bytes=10, free_bytes=990))
+    report = build_storage_report(
+        root=tmp_path,
+        categories={},
+        disk=disk,
+        thresholds=DEFAULT_THRESHOLDS,
+        backup_dir=tmp_path,
+        artifact_store=None,
+        now=NOW,
+    )
+    assert report.tmp_dir_usable is True

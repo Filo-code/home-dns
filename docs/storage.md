@@ -83,6 +83,7 @@ error.
 | `unresolved path(s): tmp_dir` (or another path) | `paths.*` in the active profile is still an `<<AUDIT:…>>` placeholder |
 | `storage commands are development-only …` | Running with `--env production`; storage commands, like blocklists, are gated until C3 |
 | `verify` reports a backup mismatch | The backup directory was modified outside this tool; restore from an earlier valid backup, or re-create one |
+| `storage status` shows `tmp_dir is missing or not writable` | `paths.tmp_dir` (e.g. a tmpfs mount) isn't present or writable right now. Harmless unless a database exists and needs backing up — see [the RAM/tmpfs audit](specs/a4-storage-maintenance.md#12-ramtmpfs-audit-2026-09-14) |
 
 ## Recovery / Rollback
 

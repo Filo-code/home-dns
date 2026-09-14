@@ -10,6 +10,7 @@ from home_dns.core.storage import CategoryUsage, StorageReport, StorageThreshold
 from home_dns.storage.artifacts import ArtifactStore
 from home_dns.storage.backup import list_backups
 from home_dns.storage.disk import DiskUsageProvider, directory_size_bytes
+from home_dns.storage.tempfiles import probe_writable
 
 
 def build_storage_report(
@@ -21,6 +22,7 @@ def build_storage_report(
     backup_dir: Path,
     artifact_store: ArtifactStore | None,
     artifact_sources: Sequence[str] = (),
+    tmp_dir: Path | None = None,
     now: datetime,
 ) -> StorageReport:
     """``root`` is the filesystem whose usage is classified against ``thresholds`` (typically the
@@ -54,4 +56,5 @@ def build_storage_report(
         last_backup_at=last_backup_at,
         backup_count=len(valid_backups),
         artifact_counts=artifact_counts,
+        tmp_dir_usable=probe_writable(tmp_dir) if tmp_dir is not None else True,
     )

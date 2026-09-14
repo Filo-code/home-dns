@@ -139,6 +139,76 @@ Not implemented in A4, by design (§2 already makes it a non-event):
 - No module hard-codes a filesystem location; storage code receives paths as parameters.
 - Moving `data_dir` (and, later, `log_dir`) to a USB SSD mount is a configuration change (and a documented `rsync` + remount procedure in C-stage), not a code change.
 
+## 12. RAM/tmpfs audit (2026-09-14)
+
+Performed before A5, at the owner's request, to decide whether the project needs a dedicated
+RAM-backed temporary-storage subsystem. **Conclusion: no dedicated subsystem is justified.**
+`paths.tmp_dir` is already tmpfs-ready by construction (§2, §11); the audit found two small,
+narrowly-scoped correctness gaps, fixed below, and no case for new configuration surface.
+
+### What actually writes to `tmp_dir` today
+
+Every disk-write call site in `src/home_dns` was traced (`_atomic_write`, `open(...)`,
+`write_text`/`write_bytes`, `shutil.copy*`, `os.replace`, `mkdir`):
+
+| Writer | Destination | Size | Frequency |
+|---|---|---|---|
+| Blocklist download (`pipeline/fetch.py`) | **nowhere** — held entirely in process memory (a `list[bytes]`), never spooled to disk | bounded by `PipelineOptions.max_bytes` (50 MiB default, per source) | every update attempt |
+| Blocklist artifact activation (`storage/artifacts.py`) | `data_dir/blocklists/<source>/artifacts/` (persistent) | a few MB of rendered list text | every accepted update |
+| Backup creation (`storage/backup.py`) | `backup_dir` (persistent) | config tree + optional DB snapshot | on `storage backup --apply` |
+| Log rotation (`storage/logs.py`) | `log_dir` (persistent) | bounded by `logs_max_bytes x logs_backup_count` | ongoing, once a logger is attached |
+| SQLite hot-backup staging (`storage/sqlite.py`, staged by `cli.py`) | **`tmp_dir`** (`.db-snapshot-<timestamp>/home-dns.db`) | the live database's size | only on `storage backup --apply`, only if a database file exists |
+| Generic temp sweep (`storage/tempfiles.py`) | reads/deletes inside `tmp_dir` | — | on `storage cleanup` |
+
+**Finding:** `tmp_dir` currently receives exactly one kind of write — the short-lived SQLite
+snapshot staged during `storage backup`. No blocklist download, artifact or backup ever touches
+`tmp_dir`; each writes straight into its own persistent directory with its own atomic-rename
+safety (A2/A4). There is no code path today where a large blocklist download could land in
+`tmp_dir` — the "unbounded temp file" risk the audit was asked to guard against does not exist
+in this codebase's actual data flow, because downloads never reach disk before validation.
+
+### Design answers
+
+| Question | Answer |
+|---|---|
+| What belongs in tmpfs? | The SQLite hot-backup staging snapshot — the only genuinely disposable, reboot-safe-to-lose data this codebase currently writes to `tmp_dir` |
+| What must never be placed in tmpfs? | Blocklist artifacts (`current`/`previous`/`backup`), the live database file itself, configuration, backups — none of these are ever routed through `tmp_dir`; each writes directly into its own persistent directory |
+| How much RAM could tmpfs consume? | Bounded by whatever is staged at once. Today: effectively 0 (A7 hasn't created a database yet). Later: one DB snapshot at a time, bounded by the database's own size, itself bounded by `retention.query_history_days` |
+| How is tmpfs size bounded? | Not by this codebase — sizing a tmpfs mount (`mount -o size=…`) is an OS/deployment decision for C-stage, informed by the database size at that time. The application-level bound is that only one snapshot ever exists at once and it is removed immediately after use |
+| What if tmpfs is unavailable? | `tmp_dir` is just a configured `Path`. `sweep_temp_dir` on a missing directory is a documented no-op; the DB-snapshot staging creates it on demand (`mkdir(parents=True, exist_ok=True)`) and, if that's impossible, fails the `backup` command loudly — never silently |
+| What if tmpfs becomes full? | The DB-snapshot write fails with `OSError`, surfaced as a failed `backup` command. The `config` source of the same backup doesn't use `tmp_dir` at all, so it is unaffected |
+| What happens after reboot? | An empty `tmp_dir` (if tmpfs-backed) is correct and expected: nothing that must survive reboot is ever written there |
+| Interrupted blocklist update? | Unaffected — blocklist updates never touch `tmp_dir`. A2's tripwire and atomic activation already guarantee the previous artifact stays current on any interruption |
+| Can a tmpfs failure lose the last known-good blocklist? | No — blocklist artifacts never pass through `tmp_dir` |
+| Can tmpfs pressure cause system-wide memory pressure? | Only in proportion to what's staged (≤ one DB snapshot); this is exactly why downloads and artifacts are deliberately kept out of `tmp_dir` |
+| Safe on a Pi 4 with 4 GB RAM? | Yes. The one real in-memory bound to watch is `PipelineOptions.max_bytes` (process RAM, 50 MiB default per in-flight download) — orthogonal to `tmp_dir`/tmpfs and already enforced |
+| Is tmpfs actually worthwhile here? | The existing design (a configured `Path`, resolved once, no filesystem-type assumptions anywhere) is already sufficient and already tmpfs-ready. Pointing `paths.tmp_dir` at a tmpfs mount in C-stage needs **zero code changes**. A dedicated "tmpfs mode" setting would add configuration surface to bound a workload (downloads) that never reaches `tmp_dir`, and to bound a workload (the DB snapshot) that is already naturally self-limiting |
+
+### What was fixed as a direct result of this audit
+
+1. **`storage backup`'s DB-snapshot cleanup is now exception-safe.** Previously, if `create_backup`
+   raised after the snapshot was staged (e.g. two backups requested within the same second), the
+   snapshot directory was left in `tmp_dir` until the next age-based `storage cleanup` sweep — not
+   a data-loss risk (it's disposable by definition), but an unnecessary window. Now wrapped in
+   `try`/`finally`.
+2. **`storage status` now reports whether `tmp_dir` is usable** (`tmp_dir_usable: bool` on
+   `StorageReport`, via a small write-then-delete probe in `storage/tempfiles.py`), so a missing or
+   unmounted tmpfs is visible to an operator or to A5 monitoring — without adding any fallback
+   machinery, since the one writer that depends on `tmp_dir` already fails safely (loudly, not
+   silently) if it's unusable.
+
+### Explicitly not built, and why
+
+- **No `tmp_mode`/`use_tmpfs` setting.** `paths.tmp_dir` already accepts any path, including a
+  tmpfs mount; a toggle would change nothing about behaviour.
+- **No tmpfs size-bounding config in this codebase.** Nothing here writes an unbounded amount to
+  `tmp_dir`; the correct bound (`mount -o size=…`) belongs to the C-stage deployment, not to
+  application code duplicating it.
+- **No "fallback to persistent temp storage" abstraction.** There is exactly one call site that
+  writes to `tmp_dir`, and it already degrades safely (a failed command, never lost persistent
+  data) if `tmp_dir` is unusable. Building a generic fallback layer for one call site would be
+  speculative.
+
 ## Deliberate simplifications (owner can revisit)
 
 | Simplification | Ceiling | Upgrade path |

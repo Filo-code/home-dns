@@ -1,5 +1,6 @@
 import io
 import json
+import sqlite3
 from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -607,3 +608,59 @@ def test_storage_config_load_error_exits_2(make_config_dir: MakeConfigDir) -> No
     config_dir = make_config_dir(DEV_PROFILE, **{"storage__storage.yaml": "schema_version: 2\n"})
     code, _, err = _storage(config_dir, "status")
     assert code == 2 and "configuration error" in err
+
+
+# ------------------------------------------------------- A4.1 (RAM/tmpfs audit): tmp_dir health
+
+
+def test_storage_status_reports_missing_tmp_dir(make_config_dir: MakeConfigDir) -> None:
+    config_dir = make_config_dir(DEV_PROFILE)
+    tmp_dir = config_dir.parent / ".local" / "tmp"
+    assert not tmp_dir.exists()  # never created by validate-config or other setup
+    code, out, _ = _storage(config_dir, "status")
+    assert code == 0
+    assert "tmp_dir is missing or not writable" in out
+
+
+def test_storage_status_json_reports_tmp_dir_usable(make_config_dir: MakeConfigDir) -> None:
+    config_dir = make_config_dir(DEV_PROFILE)
+    (config_dir.parent / ".local" / "tmp").mkdir(parents=True)
+    code, out, _ = _storage(config_dir, "status", "--format", "json")
+    payload = json.loads(out)
+    assert code == 0 and payload["tmp_dir_usable"] is True
+
+
+def test_storage_status_never_creates_tmp_dir(make_config_dir: MakeConfigDir) -> None:
+    """Regression: reading status must stay read-only (no probe side effects)."""
+    config_dir = make_config_dir(DEV_PROFILE)
+    _storage(config_dir, "status")
+    assert not (config_dir.parent / ".local" / "tmp").exists()
+
+
+def test_backup_cleans_up_snapshot_directory_even_when_create_backup_fails(
+    make_config_dir: MakeConfigDir, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Audit fix: a failed create_backup() must not leave the DB-snapshot staging dir behind."""
+    config_dir = make_config_dir(DEV_PROFILE)
+    data_dir = config_dir.parent / ".local" / "data"
+    data_dir.mkdir(parents=True)
+    db_path = data_dir / "home-dns.db"
+    connection = sqlite3.connect(db_path)
+    connection.execute("CREATE TABLE t (id INTEGER)")
+    connection.close()
+
+    def explode(*args: object, **kwargs: object) -> None:
+        raise cli.BackupError("simulated: name collision")
+
+    monkeypatch.setattr(cli, "create_backup", explode)
+    out, err = io.StringIO(), io.StringIO()
+    with pytest.raises(cli.BackupError):
+        cli.main(
+            ["storage", "backup", "--apply", "--config-dir", str(config_dir)],
+            out=out,
+            err=err,
+            now=lambda: FIXED_NOW,
+        )
+    tmp_dir = config_dir.parent / ".local" / "tmp"
+    leftovers = list(tmp_dir.glob(".db-snapshot-*")) if tmp_dir.exists() else []
+    assert leftovers == []

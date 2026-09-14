@@ -8,6 +8,7 @@ subdirectories at all; if one appears, it is reported and skipped, not descended
 
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -26,6 +27,17 @@ def _is_contained(child: Path, parent: Path) -> bool:
     except ValueError:
         return False
     return True
+
+
+def probe_writable(path: Path) -> bool:
+    """Read-only check: does ``path`` exist and can this process write to it right now?
+
+    Deliberately non-mutating (no mkdir, no marker file) so a read-only command like
+    ``storage status`` stays read-only even when this is used for health reporting
+    (StorageReport.tmp_dir_usable) — a missing or unmounted tmpfs, or a read-only filesystem,
+    must be *observable* without side effects, not created on the spot.
+    """
+    return path.is_dir() and os.access(path, os.W_OK)
 
 
 def sweep_temp_dir(

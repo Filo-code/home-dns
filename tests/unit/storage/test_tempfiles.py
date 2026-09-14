@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from home_dns.storage.tempfiles import sweep_temp_dir
+from home_dns.storage.tempfiles import probe_writable, sweep_temp_dir
 
 NOW = datetime(2026, 9, 14, 12, 0, tzinfo=UTC)
 MAX_AGE = timedelta(hours=24)
@@ -97,3 +97,37 @@ def test_delete_failure_is_reported_not_raised(
     assert result.removed == ()
     assert result.skipped == (("stuck.tmp", "delete failed"),)
     assert (tmp_path / "stuck.tmp").exists()
+
+
+# ------------------------------------------------------------- A4.1 (RAM/tmpfs audit): probe
+
+
+def test_probe_writable_true_for_writable_directory(tmp_path: Path) -> None:
+    assert probe_writable(tmp_path) is True
+
+
+def test_probe_writable_false_for_missing_directory(tmp_path: Path) -> None:
+    assert probe_writable(tmp_path / "does-not-exist") is False
+
+
+def test_probe_writable_is_non_mutating(tmp_path: Path) -> None:
+    """Simulates an unmounted tmpfs: the probe must never create the directory itself."""
+    missing = tmp_path / "unmounted-tmpfs"
+    probe_writable(missing)
+    assert not missing.exists()
+
+
+def test_probe_writable_false_for_read_only_directory(tmp_path: Path) -> None:
+    readonly = tmp_path / "readonly"
+    readonly.mkdir()
+    readonly.chmod(0o500)
+    try:
+        assert probe_writable(readonly) is False
+    finally:
+        readonly.chmod(0o700)  # restore so pytest can clean up tmp_path
+
+
+def test_probe_writable_false_for_a_file_not_a_directory(tmp_path: Path) -> None:
+    not_a_dir = tmp_path / "file.txt"
+    not_a_dir.write_text("x")
+    assert probe_writable(not_a_dir) is False
