@@ -2,7 +2,7 @@
 
 One category per file: `<category>.yaml`, and the `category:` value must equal the file name. Schema and rules: [ADR 0003](../../docs/adr/0003-configuration-model.md).
 
-> **Status:** schema implemented (A1). **Entries are added in A3 from verified sources.** Until then `validate-config` warns that the tripwire has nothing to check.
+> **Status (A3):** 293 verified entries. Strategy and evidence: [design §4](../../docs/specs/a3-filtering-policy.md) and the [evaluation report](../../docs/research/2026-09-14-a3-policy-evaluation.md).
 
 Uses:
 - `validate-config` rejects any active deny rule or deny regex that would block a protected domain.
@@ -10,6 +10,15 @@ Uses:
 
 | File | Scope |
 |---|---|
-| `italian.yaml` | Poste Italiane, SPID, PagoPA, Agenzia delle Entrate, major Italian banks, payment infrastructure |
-| `technology.yaml` | Google, Microsoft, Apple, Amazon, Steam, Xbox, Netflix, Prime Video, Disney+, YouTube, Twitch |
-| `infrastructure.yaml` | Major CDNs, authentication, OS updates, certificate infrastructure (OCSP/CRL), cloud, DNS infrastructure |
+| `italian.yaml` | Poste Italiane, SPID, PagoPA, Agenzia delle Entrate, INPS, IO, CIE |
+| `banking.yaml` | Intesa Sanpaolo, UniCredit, Banco BPM, BPER, MPS, Mediolanum, Fineco, Sella, Credem, Crédit Agricole, Nexi, PayPal, Stripe |
+| `technology.yaml` | Google, Microsoft, Apple, Amazon |
+| `gaming.yaml` | Steam, Xbox network, Microsoft Store, PlayStation Network |
+| `streaming.yaml` | Netflix, YouTube, Prime Video, Disney+, DAZN, Twitch |
+| `social.yaml` | Instagram, Facebook, TikTok, X, Reddit, Telegram, WhatsApp, Discord, Snapchat |
+| `infrastructure.yaml` | DNS root/TLD, certificates (OCSP/CRL), time, OS updates, connectivity checks, project supply chain, multi-tenant apex guards |
+
+**Adding an entry:**
+- Use `include_subdomains: true` only for a namespace used exclusively by one service, and only after `scripts/blocklists/evaluate_policy.py` shows no listed names inside it.
+- Otherwise protect the exact apex and the essential hosts.
+- Never protect tenants of shared platforms.

@@ -1,0 +1,138 @@
+# Protected domains: banking (ADR 0003, A3 design docs/specs/a3-filtering-policy.md).
+# Domains here are never blocked. A deny rule or regex touching one is a configuration error,
+# and the A2 pipeline aborts any blocklist deployment that contains one.
+# include_subdomains: true only for single-tenant namespaces with no listed names inside
+# (checked against 8 real HaGeZi lists on 2026-09-14); otherwise exact.
+schema_version: 1
+category: banking
+description: "Major Italian banks and payment services."
+
+domains:
+  - domain: intesasanpaolo.com
+    include_subdomains: false
+    reason: "Intesa Sanpaolo official domain"
+    source: "official site verified 2026-09-14: https://www.intesasanpaolo.com/ served 'Banca Intesa Sanpaolo'"
+  - domain: www.intesasanpaolo.com
+    include_subdomains: false
+    reason: "Intesa Sanpaolo official site"
+    source: "official site verified 2026-09-14: https://www.intesasanpaolo.com/ served 'Banca Intesa Sanpaolo'"
+  - domain: unicredit.it
+    include_subdomains: false
+    reason: "UniCredit official domain"
+    source: "official site verified 2026-09-14: https://www.unicredit.it/ served 'UniCredit Banca'"
+  - domain: www.unicredit.it
+    include_subdomains: false
+    reason: "UniCredit official site"
+    source: "official site verified 2026-09-14: https://www.unicredit.it/ served 'UniCredit Banca'"
+  - domain: bancobpm.it
+    include_subdomains: false
+    reason: "Banco BPM official domain"
+    source: "official site verified 2026-09-14: https://www.bancobpm.it/ served 'Banco BPM'"
+  - domain: www.bancobpm.it
+    include_subdomains: false
+    reason: "Banco BPM official site"
+    source: "official site verified 2026-09-14: https://www.bancobpm.it/ served 'Banco BPM'"
+  - domain: bper.it
+    include_subdomains: false
+    reason: "BPER Banca official domain"
+    source: "official site verified 2026-09-14: https://www.bper.it/ served 'BPER Banca'"
+  - domain: www.bper.it
+    include_subdomains: false
+    reason: "BPER Banca official site"
+    source: "official site verified 2026-09-14: https://www.bper.it/ served 'BPER Banca'"
+  - domain: mps.it
+    include_subdomains: false
+    reason: "Monte dei Paschi di Siena official domain"
+    source: "official site verified 2026-09-14: https://www.mps.it/ served 'mps.it'"
+  - domain: www.mps.it
+    include_subdomains: false
+    reason: "Monte dei Paschi di Siena official site"
+    source: "official site verified 2026-09-14: https://www.mps.it/ served 'mps.it'"
+  - domain: bancamediolanum.it
+    include_subdomains: false
+    reason: "Banca Mediolanum official domain"
+    source: "official site verified 2026-09-14: https://www.bancamediolanum.it/ served 'Banca Mediolanum'"
+  - domain: www.bancamediolanum.it
+    include_subdomains: false
+    reason: "Banca Mediolanum official site"
+    source: "official site verified 2026-09-14: https://www.bancamediolanum.it/ served 'Banca Mediolanum'"
+  - domain: finecobank.com
+    include_subdomains: false
+    reason: "Fineco official domain"
+    source: "official site verified 2026-09-14: https://it.finecobank.com/ served 'Banca Fineco'"
+  - domain: it.finecobank.com
+    include_subdomains: false
+    reason: "Fineco official domain"
+    source: "official site verified 2026-09-14: https://it.finecobank.com/ served 'Banca Fineco'"
+  - domain: sella.it
+    include_subdomains: false
+    reason: "Banca Sella official domain"
+    source: "official site verified 2026-09-14: https://www.sella.it/ served 'Home | Banca Sella'"
+  - domain: www.sella.it
+    include_subdomains: false
+    reason: "Banca Sella official site"
+    source: "official site verified 2026-09-14: https://www.sella.it/ served 'Home | Banca Sella'"
+  - domain: credem.it
+    include_subdomains: false
+    reason: "Credem official domain"
+    source: "official site verified 2026-09-14: https://www.credem.it/ served 'Credem Banca'"
+  - domain: www.credem.it
+    include_subdomains: false
+    reason: "Credem official site"
+    source: "official site verified 2026-09-14: https://www.credem.it/ served 'Credem Banca'"
+  - domain: credit-agricole.it
+    include_subdomains: false
+    reason: "Crédit Agricole Italia official domain"
+    source: "official site verified 2026-09-14: https://www.credit-agricole.it/ served 'Crédit Agricole Italia'"
+  - domain: www.credit-agricole.it
+    include_subdomains: false
+    reason: "Crédit Agricole Italia official site"
+    source: "official site verified 2026-09-14: https://www.credit-agricole.it/ served 'Crédit Agricole Italia'"
+  - domain: nexi.it
+    include_subdomains: false
+    reason: "Nexi official domain"
+    source: "official site verified 2026-09-14: https://www.nexi.it/ served 'Nexi'"
+  - domain: www.nexi.it
+    include_subdomains: false
+    reason: "Nexi official site"
+    source: "official site verified 2026-09-14: https://www.nexi.it/ served 'Nexi'"
+  - domain: paypal.com
+    include_subdomains: false
+    reason: "PayPal official domain"
+    source: "official site verified 2026-09-14: https://www.paypal.com/ served 'PayPal IT'"
+  - domain: www.paypal.com
+    include_subdomains: false
+    reason: "PayPal official site"
+    source: "official site verified 2026-09-14: https://www.paypal.com/ served 'PayPal IT'"
+  - domain: fineco.it
+    include_subdomains: false
+    reason: "Fineco domain (redirects to it.finecobank.com)"
+    source: "official Fineco domain; https://fineco.it/ redirects to https://it.finecobank.com/ (verified 2026-09-14)"
+  - domain: www.fineco.it
+    include_subdomains: false
+    reason: "Fineco site (redirects to it.finecobank.com)"
+    source: "host under the verified official domain fineco.it; DNS verified 2026-09-14"
+  - domain: api-m.paypal.com
+    include_subdomains: false
+    reason: "PayPal payments API"
+    source: "host under the verified official domain paypal.com; DNS verified 2026-09-14"
+  - domain: paypalobjects.com
+    include_subdomains: true
+    reason: "PayPal static assets used by checkout"
+    source: "referenced by the official site https://www.paypal.com/ (verified 2026-09-14)"
+  - domain: stripe.com
+    include_subdomains: false
+    reason: "Stripe official domain"
+    source: "official site verified 2026-09-14: https://stripe.com/ served 'Stripe'"
+  - domain: js.stripe.com
+    include_subdomains: false
+    reason: "Stripe.js, required by merchant checkouts"
+    source: "host under the verified official domain stripe.com; DNS verified 2026-09-14"
+  - domain: checkout.stripe.com
+    include_subdomains: false
+    reason: "Stripe hosted checkout"
+    source: "host under the verified official domain stripe.com; DNS verified 2026-09-14"
+  - domain: api.stripe.com
+    include_subdomains: false
+    reason: "Stripe payments API"
+    source: "host under the verified official domain stripe.com; DNS verified 2026-09-14"

@@ -36,6 +36,9 @@ from home_dns.config.loader import (
 from home_dns.config.placeholders import Placeholder
 from home_dns.config.readiness import ReadinessReport, evaluate_readiness
 from home_dns.config.settings import Environment
+from home_dns.core.blocklists import ArtifactFormatError, BlockEntry, parse_artifact
+from home_dns.core.domains import InvalidDomainError
+from home_dns.core.policy import PolicyEngine, UnknownGroupError
 from home_dns.pipeline.blocklists import Outcome, PipelineOptions, SourceReport, run_update
 from home_dns.pipeline.fetch import Fetcher, HttpxFetcher
 from home_dns.providers.base import ProviderError
@@ -99,6 +102,14 @@ def _build_parser() -> argparse.ArgumentParser:
     _add_config_arguments(rollback)
     rollback.add_argument("source")
     rollback.add_argument("--apply", action="store_true", help="perform the rollback")
+
+    policy = commands.add_parser("policy", help="inspect the filtering policy (read-only)")
+    policy_actions = policy.add_subparsers(dest="policy_command", required=True)
+    explain = policy_actions.add_parser("explain", help="why a domain is allowed or blocked")
+    _add_config_arguments(explain)
+    explain.add_argument("--group", required=True, help="device group id, e.g. SMART-TV")
+    explain.add_argument("domains", nargs="+", help="domain names to evaluate")
+    explain.add_argument("--format", choices=["text", "json"], default="text")
     return parser
 
 
@@ -376,6 +387,70 @@ def _blocklists(
     return EXIT_OK if all(r.outcome in _SUCCESS_OUTCOMES for r in reports) else EXIT_NOT_READY
 
 
+def _policy_explain(
+    args: argparse.Namespace, out: TextIO, err: TextIO, now: Callable[[], datetime]
+) -> int:
+    try:
+        config, config_dir = _load(args)
+        filtering = load_filtering_config(config_dir, now=now())
+    except ConfigLoadError as exc:
+        print(f"configuration error: {exc}", file=err)
+        return EXIT_LOAD_ERROR
+    if filtering.errors:
+        print("filtering configuration has errors; run validate-config", file=err)
+        return EXIT_LOAD_ERROR
+
+    blocklists: dict[str, frozenset[BlockEntry]] = {}
+    notes: list[str] = []
+    data_dir = config.settings.paths.data_dir
+    if isinstance(data_dir, Placeholder):
+        notes.append(f"paths.data_dir unresolved ({data_dir.token}); blocklists not evaluated")
+    else:
+        store = ArtifactStore(config.resolve(data_dir) / "blocklists")
+        for source in filtering.config.sources:
+            try:
+                artifact = store.current(source.id)
+                if artifact is None:
+                    notes.append(f"{source.id}: no active artifact; list not evaluated")
+                else:
+                    blocklists[source.id] = parse_artifact(artifact.text)
+            except (ArtifactStoreError, ArtifactFormatError) as exc:
+                notes.append(f"{source.id}: active artifact unreadable ({exc}); list not evaluated")
+
+    engine = PolicyEngine(filtering.config, blocklists, now=now())
+    try:
+        decisions = [engine.decide(args.group, domain) for domain in args.domains]
+    except (UnknownGroupError, InvalidDomainError) as exc:
+        print(f"invalid input: {exc}", file=err)
+        return EXIT_LOAD_ERROR
+
+    if args.format == "json":
+        payload = {
+            "group": args.group,
+            "policy_sources": list(engine.sources_for(args.group)),
+            "notes": notes,
+            "decisions": [
+                {
+                    "domain": d.domain,
+                    "verdict": d.verdict.value,
+                    "reason": d.reason.value,
+                    "detail": d.detail,
+                    "matched": list(d.matched),
+                }
+                for d in decisions
+            ],
+        }
+        json.dump(payload, out, indent=2)
+        out.write("\n")
+    else:
+        print(f"group {args.group} uses: {', '.join(engine.sources_for(args.group))}", file=out)
+        for note in notes:
+            print(f"  note: {note}", file=out)
+        for d in decisions:
+            print(f"{d.domain}: {d.verdict.value} ({d.reason.value}) — {d.detail}", file=out)
+    return EXIT_OK
+
+
 def main(
     argv: Sequence[str] | None = None,
     *,
@@ -392,6 +467,8 @@ def main(
         return _validate_config(args, out, err, clock)
     if args.command == "blocklists":
         return _blocklists(args, out, err, clock, fetcher)
+    if args.command == "policy":
+        return _policy_explain(args, out, err, clock)
     return _serve(args, err)
 
 

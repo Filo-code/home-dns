@@ -16,13 +16,13 @@ groups:
     policy: standard
   - id: GAMING
     description: Gaming PCs. Must not break launchers, anti-cheat, voice chat or downloads.
-    policy: conservative
+    policy: gaming
   - id: MOBILE
     description: Smartphones and iPads. Social networks must remain fully functional.
     policy: standard
   - id: SMART-TV
     description: Smart TVs. Preserve streaming, DRM, casting, app stores, updates and CDNs.
-    policy: conservative
+    policy: smart-tv
   - id: XBOX
     description: Xbox. Preserve Xbox Live, Microsoft account, multiplayer, Game Pass, Store, parties.
-    policy: conservative
+    policy: console

@@ -26,6 +26,7 @@ from pydantic import (
 )
 
 from home_dns.core.domains import covers, normalize_domain
+from home_dns.core.regex import UnportableRegexError, validate_portable_regex
 
 DEFAULT_GROUP = "DEFAULT"
 ALL_GROUPS = "*"
@@ -210,13 +211,11 @@ class RegexRule(RuleMetadata):
 
     @field_validator("pattern")
     @classmethod
-    def _compilable_and_selective(cls, value: str) -> str:
+    def _portable_and_selective(cls, value: str) -> str:
         try:
-            compiled = re.compile(value)
-        except re.error as exc:
-            raise ValueError(f"invalid regular expression: {exc}") from exc
-        if compiled.search("") is not None:
-            raise ValueError("pattern matches the empty string and would match every domain")
+            validate_portable_regex(value)
+        except UnportableRegexError as exc:
+            raise ValueError(str(exc)) from exc
         return value
 
 

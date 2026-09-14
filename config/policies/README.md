@@ -2,7 +2,7 @@
 
 `policies.yaml` defines which blocklist sources each policy uses. Each group in `config/groups/groups.yaml` points at exactly one policy. Schema: [ADR 0003](../../docs/adr/0003-configuration-model.md).
 
-> **Provisional:** `standard` = Multi PRO + TIF Mini, `conservative` = TIF Mini only. A3 reviews these assignments with table-driven tests before anything is deployed.
+> **Decided in A3 ([ADR 0009](../../docs/adr/0009-filtering-policy.md)):** `standard` (DEFAULT, PC, MOBILE) = Multi PRO + TIF Mini · `gaming` (GAMING) = Multi NORMAL + TIF Mini · `smart-tv` (SMART-TV) and `console` (XBOX) = Multi LIGHT + TIF Mini.
 
 Hard rules from CLAUDE.md, whatever the policy:
 - **YouTube:** never block `googlevideo.com` or YouTube/Google video infrastructure (§25).

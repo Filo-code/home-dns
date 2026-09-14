@@ -22,9 +22,15 @@ def test_repository_filtering_config_is_valid(repo_config_dir: Path) -> None:
         "SMART-TV",
         "XBOX",
     }
-    assert {s.id for s in result.config.sources} == {"hagezi-multi-pro", "hagezi-tif-mini"}
+    assert {s.id for s in result.config.sources} == {
+        "hagezi-multi-pro",
+        "hagezi-tif-mini",
+        "hagezi-light",
+        "hagezi-normal",
+    }
     assert result.errors == ()
-    assert [w.location for w in result.warnings] == ["protected-domains"]
+    assert result.warnings == ()
+    assert len(result.config.protected_domains()) >= 250
 
 
 def test_repository_sources_use_jsdelivr_primary_and_github_fallback(repo_config_dir: Path) -> None:

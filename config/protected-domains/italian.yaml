@@ -1,14 +1,70 @@
-# Protected domains: italian (ADR 0003). Domains here must never be blocked.
-# A deny rule or regex that would block one of them is a configuration error, and the
-# A2 pipeline aborts any blocklist deployment that contains one.
-#
-# Entries are added in A3 from verified sources, one per item:
-#   - domain: example.com
-#     include_subdomains: true
-#     reason: why it must never be blocked
-#     source: where this was verified
+# Protected domains: italian (ADR 0003, A3 design docs/specs/a3-filtering-policy.md).
+# Domains here are never blocked. A deny rule or regex touching one is a configuration error,
+# and the A2 pipeline aborts any blocklist deployment that contains one.
+# include_subdomains: true only for single-tenant namespaces with no listed names inside
+# (checked against 8 real HaGeZi lists on 2026-09-14); otherwise exact.
 schema_version: 1
 category: italian
-description: Italian public services, banks and payment infrastructure (Poste Italiane, SPID, PagoPA, Agenzia delle Entrate, major banks).
+description: "Italian public services and identity (Poste Italiane, SPID, PagoPA, Agenzia delle Entrate, INPS, IO, CIE)."
 
-domains: []
+domains:
+  - domain: gov.it
+    include_subdomains: false
+    reason: "apex guard for the Italian public administration namespace"
+    source: "*.gov.it is reserved to Italian public administration; DNS verified 2026-09-14"
+  - domain: italia.it
+    include_subdomains: false
+    reason: "apex guard for the italia.it public services namespace"
+    source: "parent namespace of io.italia.it (App IO); DNS verified 2026-09-14"
+  - domain: poste.it
+    include_subdomains: false
+    reason: "Poste Italiane official domain"
+    source: "official site verified 2026-09-14: https://www.poste.it/ served 'Poste Italiane - Servizi postali, finanziari e assicurativi'"
+  - domain: www.poste.it
+    include_subdomains: false
+    reason: "Poste Italiane official site"
+    source: "official site verified 2026-09-14: https://www.poste.it/ served 'Poste Italiane - Servizi postali, finanziari e assicurativi'"
+  - domain: posteid.poste.it
+    include_subdomains: false
+    reason: "PosteID SPID identity provider login"
+    source: "host under the verified official domain poste.it; DNS verified 2026-09-14"
+  - domain: spid.gov.it
+    include_subdomains: true
+    reason: "SPID official site (single-tenant AgID namespace)"
+    source: "official site verified 2026-09-14: https://www.spid.gov.it/ served 'SPID - Sistema Pubblico di identità Digitale'"
+  - domain: pagopa.gov.it
+    include_subdomains: true
+    reason: "PagoPA official platform namespace"
+    source: "official site verified 2026-09-14: https://www.pagopa.gov.it/ served 'Home – pagoPA'"
+  - domain: pagopa.it
+    include_subdomains: false
+    reason: "PagoPA payments domain"
+    source: "PagoPA public payments domain; DNS verified 2026-09-14"
+  - domain: checkout.pagopa.it
+    include_subdomains: false
+    reason: "PagoPA payment checkout"
+    source: "host under the verified official domain pagopa.it; DNS verified 2026-09-14"
+  - domain: agenziaentrate.gov.it
+    include_subdomains: true
+    reason: "Agenzia delle Entrate services namespace"
+    source: "official site verified 2026-09-14: https://www.agenziaentrate.gov.it/ served 'Portale Agenzia Entrate'"
+  - domain: inps.it
+    include_subdomains: false
+    reason: "INPS official domain"
+    source: "official site verified 2026-09-14: https://www.inps.it/ served 'Portale Inps - Home'"
+  - domain: www.inps.it
+    include_subdomains: false
+    reason: "INPS official site"
+    source: "official site verified 2026-09-14: https://www.inps.it/ served 'Portale Inps - Home'"
+  - domain: io.italia.it
+    include_subdomains: true
+    reason: "App IO backend and site namespace"
+    source: "official App IO namespace; redirects to https://ioapp.it/ (verified 2026-09-14)"
+  - domain: ioapp.it
+    include_subdomains: false
+    reason: "App IO official site"
+    source: "official site verified 2026-09-14: https://ioapp.it/ served 'IO, l'app dei servizi pubblici'"
+  - domain: servizicie.interno.gov.it
+    include_subdomains: true
+    reason: "Carta d'Identità Elettronica (CieID) authentication"
+    source: "*.gov.it is reserved to Italian public administration; DNS verified 2026-09-14"

@@ -218,6 +218,12 @@ def find_tripwire_hits(
     """Entries that would block a protected domain (either direction of the subdomain relation)."""
     exact = {p.domain for p in protected}
     with_subdomains = {p.domain for p in protected if p.include_subdomains}
+    # parent -> first protected name below it (sorted, so reports are deterministic). Lets a
+    # wildcard entry be checked in O(1) instead of scanning every protected name.
+    below: dict[str, str] = {}
+    for name in sorted(exact):
+        for parent in _ancestors(name):
+            below.setdefault(parent, name)
     hits: list[TripwireHit] = []
     for entry in entries:
         if entry.domain in exact:
@@ -227,12 +233,8 @@ def find_tripwire_hits(
         if inside is not None:
             hits.append(TripwireHit(entry, inside, "entry-inside-protected"))
             continue
-        if entry.include_subdomains:
-            suffix = "." + entry.domain
-            for name in exact:
-                if name.endswith(suffix):
-                    hits.append(TripwireHit(entry, name, "entry-covers-protected"))
-                    break
+        if entry.include_subdomains and entry.domain in below:
+            hits.append(TripwireHit(entry, below[entry.domain], "entry-covers-protected"))
     return sorted(hits, key=lambda hit: (hit.protected_domain, hit.entry.domain))
 
 

@@ -1,14 +1,210 @@
-# Protected domains: infrastructure (ADR 0003). Domains here must never be blocked.
-# A deny rule or regex that would block one of them is a configuration error, and the
-# A2 pipeline aborts any blocklist deployment that contains one.
-#
-# Entries are added in A3 from verified sources, one per item:
-#   - domain: example.com
-#     include_subdomains: true
-#     reason: why it must never be blocked
-#     source: where this was verified
+# Protected domains: infrastructure (ADR 0003, A3 design docs/specs/a3-filtering-policy.md).
+# Domains here are never blocked. A deny rule or regex touching one is a configuration error,
+# and the A2 pipeline aborts any blocklist deployment that contains one.
+# include_subdomains: true only for single-tenant namespaces with no listed names inside
+# (checked against 8 real HaGeZi lists on 2026-09-14); otherwise exact.
 schema_version: 1
 category: infrastructure
-description: Critical internet infrastructure (major CDNs, authentication, OS updates, certificate/OCSP/CRL, cloud and DNS infrastructure).
+description: "DNS, certificate, time, OS update, connectivity and project supply-chain infrastructure, plus exact apex guards for multi-tenant platforms."
 
-domains: []
+domains:
+  - domain: root-servers.net
+    include_subdomains: true
+    reason: "DNS root name servers (recursion depends on them)"
+    source: "IANA root server namespace; DNS verified 2026-09-14"
+  - domain: gtld-servers.net
+    include_subdomains: true
+    reason: "gTLD name servers (.com/.net resolution)"
+    source: "Verisign gTLD server namespace; DNS verified 2026-09-14"
+  - domain: in-addr.arpa
+    include_subdomains: false
+    reason: "IPv4 reverse DNS namespace"
+    source: "IANA infrastructure zone; DNS verified 2026-09-14"
+  - domain: ip6.arpa
+    include_subdomains: false
+    reason: "IPv6 reverse DNS namespace"
+    source: "IANA infrastructure zone; DNS verified 2026-09-14"
+  - domain: ocsp.digicert.com
+    include_subdomains: false
+    reason: "certificate revocation (OCSP/CRL); blocking breaks TLS validation"
+    source: "certificate authority endpoint; DNS verified 2026-09-14"
+  - domain: crl3.digicert.com
+    include_subdomains: false
+    reason: "certificate revocation (OCSP/CRL); blocking breaks TLS validation"
+    source: "certificate authority endpoint; DNS verified 2026-09-14"
+  - domain: crl4.digicert.com
+    include_subdomains: false
+    reason: "certificate revocation (OCSP/CRL); blocking breaks TLS validation"
+    source: "certificate authority endpoint; DNS verified 2026-09-14"
+  - domain: ocsp.pki.goog
+    include_subdomains: false
+    reason: "certificate revocation (OCSP/CRL); blocking breaks TLS validation"
+    source: "certificate authority endpoint; DNS verified 2026-09-14"
+  - domain: ocsp.sectigo.com
+    include_subdomains: false
+    reason: "certificate revocation (OCSP/CRL); blocking breaks TLS validation"
+    source: "certificate authority endpoint; DNS verified 2026-09-14"
+  - domain: crl.sectigo.com
+    include_subdomains: false
+    reason: "certificate revocation (OCSP/CRL); blocking breaks TLS validation"
+    source: "certificate authority endpoint; DNS verified 2026-09-14"
+  - domain: ocsp.globalsign.com
+    include_subdomains: false
+    reason: "certificate revocation (OCSP/CRL); blocking breaks TLS validation"
+    source: "certificate authority endpoint; DNS verified 2026-09-14"
+  - domain: crl.globalsign.com
+    include_subdomains: false
+    reason: "certificate revocation (OCSP/CRL); blocking breaks TLS validation"
+    source: "certificate authority endpoint; DNS verified 2026-09-14"
+  - domain: oneocsp.microsoft.com
+    include_subdomains: false
+    reason: "certificate revocation (OCSP/CRL); blocking breaks TLS validation"
+    source: "certificate authority endpoint; DNS verified 2026-09-14"
+  - domain: crl.microsoft.com
+    include_subdomains: false
+    reason: "certificate revocation (OCSP/CRL); blocking breaks TLS validation"
+    source: "certificate authority endpoint; DNS verified 2026-09-14"
+  - domain: pki.goog
+    include_subdomains: true
+    reason: "Google Trust Services certificate infrastructure"
+    source: "certificate authority namespace; DNS verified 2026-09-14"
+  - domain: lencr.org
+    include_subdomains: true
+    reason: "Let's Encrypt certificate infrastructure"
+    source: "certificate authority namespace; DNS verified 2026-09-14"
+  - domain: windowsupdate.com
+    include_subdomains: true
+    reason: "Windows Update (documented as *.windowsupdate.com)"
+    source: "Microsoft Learn, Windows Update troubleshooting endpoints (https://learn.microsoft.com/en-us/troubleshoot/windows-client/installing-updates-features-roles/windows-update-issues-troubleshooting)"
+  - domain: update.microsoft.com
+    include_subdomains: true
+    reason: "Windows Update (documented as *.update.microsoft.com)"
+    source: "Microsoft Learn, Windows Update troubleshooting endpoints (https://learn.microsoft.com/en-us/troubleshoot/windows-client/installing-updates-features-roles/windows-update-issues-troubleshooting)"
+  - domain: delivery.mp.microsoft.com
+    include_subdomains: true
+    reason: "Windows Update and Microsoft Store/Xbox downloads (documented as *.delivery.mp.microsoft.com)"
+    source: "Microsoft Learn, Windows Update troubleshooting endpoints (https://learn.microsoft.com/en-us/troubleshoot/windows-client/installing-updates-features-roles/windows-update-issues-troubleshooting)"
+  - domain: prod.do.dsp.mp.microsoft.com
+    include_subdomains: true
+    reason: "Delivery Optimization (documented as *.prod.do.dsp.mp.microsoft.com)"
+    source: "Microsoft Learn, Windows Update troubleshooting endpoints (https://learn.microsoft.com/en-us/troubleshoot/windows-client/installing-updates-features-roles/windows-update-issues-troubleshooting)"
+  - domain: tsfe.trafficshaping.dsp.mp.microsoft.com
+    include_subdomains: false
+    reason: "Windows Update traffic shaping"
+    source: "Microsoft Learn, Windows Update troubleshooting endpoints (https://learn.microsoft.com/en-us/troubleshoot/windows-client/installing-updates-features-roles/windows-update-issues-troubleshooting)"
+  - domain: update.googleapis.com
+    include_subdomains: false
+    reason: "Chrome and Google component updates"
+    source: "Google core domain; DNS verified 2026-09-14"
+  - domain: dl.google.com
+    include_subdomains: false
+    reason: "Google software downloads"
+    source: "Google core domain; DNS verified 2026-09-14"
+  - domain: archive.raspberrypi.com
+    include_subdomains: false
+    reason: "Raspberry Pi OS package repository (the DNS server itself)"
+    source: "Raspberry Pi OS APT repository; DNS verified 2026-09-14"
+  - domain: deb.debian.org
+    include_subdomains: false
+    reason: "Debian package repository (the DNS server itself)"
+    source: "Debian APT repository; DNS verified 2026-09-14"
+  - domain: security.debian.org
+    include_subdomains: false
+    reason: "Debian security updates (the DNS server itself)"
+    source: "Debian security repository; DNS verified 2026-09-14"
+  - domain: cdn.jsdelivr.net
+    include_subdomains: false
+    reason: "primary blocklist mirror (A2 pipeline)"
+    source: "approved blocklist source host (ADR 0004); DNS verified 2026-09-14"
+  - domain: raw.githubusercontent.com
+    include_subdomains: false
+    reason: "fallback blocklist mirror (A2 pipeline)"
+    source: "approved blocklist source host (ADR 0004); DNS verified 2026-09-14"
+  - domain: github.com
+    include_subdomains: false
+    reason: "software releases and project repository"
+    source: "DNS verified 2026-09-14"
+  - domain: objects.githubusercontent.com
+    include_subdomains: false
+    reason: "GitHub release downloads"
+    source: "DNS verified 2026-09-14"
+  - domain: api.telegram.org
+    include_subdomains: false
+    reason: "Telegram Bot API used for alerts (A6)"
+    source: "Telegram Bot API host; DNS verified 2026-09-14"
+  - domain: pool.ntp.org
+    include_subdomains: true
+    reason: "NTP pool; correct time is required for DNSSEC and TLS"
+    source: "NTP Pool Project namespace; DNS verified 2026-09-14"
+  - domain: time.apple.com
+    include_subdomains: false
+    reason: "Apple time service"
+    source: "Apple Support 101555, Use Apple products on enterprise networks (https://support.apple.com/en-us/101555)"
+  - domain: time.windows.com
+    include_subdomains: false
+    reason: "Windows time service"
+    source: "Microsoft core domain; DNS verified 2026-09-14"
+  - domain: time.google.com
+    include_subdomains: false
+    reason: "Google public NTP"
+    source: "Google core domain; DNS verified 2026-09-14"
+  - domain: detectportal.firefox.com
+    include_subdomains: false
+    reason: "Firefox captive-portal detection"
+    source: "Mozilla connectivity check host; DNS verified 2026-09-14"
+  - domain: cloudfront.net
+    include_subdomains: false
+    reason: "apex guard for a multi-tenant CDN/cloud platform"
+    source: "exact apex guard for a multi-tenant platform: catches a list blocking the whole platform, never protects tenants; DNS verified 2026-09-14"
+  - domain: akamaized.net
+    include_subdomains: false
+    reason: "apex guard for a multi-tenant CDN/cloud platform"
+    source: "exact apex guard for a multi-tenant platform: catches a list blocking the whole platform, never protects tenants; DNS verified 2026-09-14"
+  - domain: akamaihd.net
+    include_subdomains: false
+    reason: "apex guard for a multi-tenant CDN/cloud platform"
+    source: "exact apex guard for a multi-tenant platform: catches a list blocking the whole platform, never protects tenants; DNS verified 2026-09-14"
+  - domain: akamaiedge.net
+    include_subdomains: false
+    reason: "apex guard for a multi-tenant CDN/cloud platform"
+    source: "exact apex guard for a multi-tenant platform: catches a list blocking the whole platform, never protects tenants; DNS verified 2026-09-14"
+  - domain: edgekey.net
+    include_subdomains: false
+    reason: "apex guard for a multi-tenant CDN/cloud platform"
+    source: "exact apex guard for a multi-tenant platform: catches a list blocking the whole platform, never protects tenants; DNS verified 2026-09-14"
+  - domain: edgesuite.net
+    include_subdomains: false
+    reason: "apex guard for a multi-tenant CDN/cloud platform"
+    source: "exact apex guard for a multi-tenant platform: catches a list blocking the whole platform, never protects tenants; DNS verified 2026-09-14"
+  - domain: fastly.net
+    include_subdomains: false
+    reason: "apex guard for a multi-tenant CDN/cloud platform"
+    source: "exact apex guard for a multi-tenant platform: catches a list blocking the whole platform, never protects tenants; DNS verified 2026-09-14"
+  - domain: azureedge.net
+    include_subdomains: false
+    reason: "apex guard for a multi-tenant CDN/cloud platform"
+    source: "exact apex guard for a multi-tenant platform: catches a list blocking the whole platform, never protects tenants; DNS verified 2026-09-14"
+  - domain: azurefd.net
+    include_subdomains: false
+    reason: "apex guard for a multi-tenant CDN/cloud platform"
+    source: "exact apex guard for a multi-tenant platform: catches a list blocking the whole platform, never protects tenants; DNS verified 2026-09-14"
+  - domain: blob.core.windows.net
+    include_subdomains: false
+    reason: "apex guard for a multi-tenant CDN/cloud platform"
+    source: "exact apex guard for a multi-tenant platform: catches a list blocking the whole platform, never protects tenants; DNS verified 2026-09-14"
+  - domain: trafficmanager.net
+    include_subdomains: false
+    reason: "apex guard for a multi-tenant CDN/cloud platform"
+    source: "exact apex guard for a multi-tenant platform: catches a list blocking the whole platform, never protects tenants; DNS verified 2026-09-14"
+  - domain: amazonaws.com
+    include_subdomains: false
+    reason: "apex guard for a multi-tenant CDN/cloud platform"
+    source: "exact apex guard for a multi-tenant platform: catches a list blocking the whole platform, never protects tenants; DNS verified 2026-09-14"
+  - domain: googleusercontent.com
+    include_subdomains: false
+    reason: "apex guard for a multi-tenant CDN/cloud platform"
+    source: "exact apex guard for a multi-tenant platform: catches a list blocking the whole platform, never protects tenants; DNS verified 2026-09-14"
+  - domain: cloudflare.net
+    include_subdomains: false
+    reason: "apex guard for a multi-tenant CDN/cloud platform"
+    source: "exact apex guard for a multi-tenant platform: catches a list blocking the whole platform, never protects tenants; DNS verified 2026-09-14"

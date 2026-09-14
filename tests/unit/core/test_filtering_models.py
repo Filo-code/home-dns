@@ -136,7 +136,7 @@ def test_regex_rule_validation() -> None:
     rule = RegexRule(**META, action="deny", pattern=r"^ads?[0-9]*\.example\.com$")
     assert rule.action is RuleAction.DENY
     for pattern, message in [
-        ("(unclosed", "invalid regular expression"),
+        ("(unclosed", "unbalanced"),
         (".*", "empty string"),
         ("x" * 513, "at most 512"),
     ]:

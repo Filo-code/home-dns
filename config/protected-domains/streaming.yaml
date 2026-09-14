@@ -1,0 +1,174 @@
+# Protected domains: streaming (ADR 0003, A3 design docs/specs/a3-filtering-policy.md).
+# Domains here are never blocked. A deny rule or regex touching one is a configuration error,
+# and the A2 pipeline aborts any blocklist deployment that contains one.
+# include_subdomains: true only for single-tenant namespaces with no listed names inside
+# (checked against 8 real HaGeZi lists on 2026-09-14); otherwise exact.
+schema_version: 1
+category: streaming
+description: "Netflix, YouTube, Prime Video, Disney+, DAZN and Twitch playback, API and CDN endpoints."
+
+domains:
+  - domain: netflix.com
+    include_subdomains: false
+    reason: "Netflix official domain (logging subdomains stay blockable)"
+    source: "official site verified 2026-09-14: https://www.netflix.com/ served 'Netflix Italy'"
+  - domain: www.netflix.com
+    include_subdomains: false
+    reason: "Netflix official site"
+    source: "official site verified 2026-09-14: https://www.netflix.com/ served 'Netflix Italy'"
+  - domain: api-global.netflix.com
+    include_subdomains: false
+    reason: "Netflix API"
+    source: "host under the verified official domain netflix.com; DNS verified 2026-09-14"
+  - domain: nflxext.com
+    include_subdomains: true
+    reason: "Netflix static assets"
+    source: "referenced by the official site https://www.netflix.com/ (verified 2026-09-14)"
+  - domain: nflximg.net
+    include_subdomains: true
+    reason: "Netflix images"
+    source: "referenced by the official site https://www.netflix.com/ (verified 2026-09-14)"
+  - domain: nflxso.net
+    include_subdomains: true
+    reason: "Netflix static and image delivery"
+    source: "referenced by the official site https://www.netflix.com/ (verified 2026-09-14)"
+  - domain: nflxvideo.net
+    include_subdomains: true
+    reason: "Netflix Open Connect video delivery"
+    source: "service delivery domain; DNS verified 2026-09-14; not observable from official pages (verification level: DNS only)"
+  - domain: youtube.com
+    include_subdomains: false
+    reason: "YouTube official domain"
+    source: "Google core domain; DNS verified 2026-09-14"
+  - domain: www.youtube.com
+    include_subdomains: false
+    reason: "YouTube site"
+    source: "Google core domain; DNS verified 2026-09-14"
+  - domain: m.youtube.com
+    include_subdomains: false
+    reason: "YouTube mobile site"
+    source: "Google core domain; DNS verified 2026-09-14"
+  - domain: youtubei.googleapis.com
+    include_subdomains: false
+    reason: "YouTube player/app API"
+    source: "Google core domain; DNS verified 2026-09-14"
+  - domain: youtube-nocookie.com
+    include_subdomains: false
+    reason: "YouTube privacy-enhanced embeds"
+    source: "Google core domain; DNS verified 2026-09-14"
+  - domain: youtu.be
+    include_subdomains: false
+    reason: "YouTube short links"
+    source: "Google core domain; DNS verified 2026-09-14"
+  - domain: yt3.ggpht.com
+    include_subdomains: false
+    reason: "YouTube channel avatars"
+    source: "Google core domain; DNS verified 2026-09-14"
+  - domain: ytimg.com
+    include_subdomains: true
+    reason: "YouTube thumbnails and player assets"
+    source: "referenced by the official site https://www.youtube.com/ (verified 2026-09-14)"
+  - domain: googlevideo.com
+    include_subdomains: true
+    reason: "YouTube video delivery; must never be blocked (CLAUDE.md §25)"
+    source: "service delivery domain; DNS verified 2026-09-14; not observable from official pages (verification level: DNS only)"
+  - domain: primevideo.com
+    include_subdomains: false
+    reason: "Prime Video official domain"
+    source: "official site verified 2026-09-14: https://www.primevideo.com/ served 'Welcome to Prime Video'"
+  - domain: www.primevideo.com
+    include_subdomains: false
+    reason: "Prime Video official site"
+    source: "official site verified 2026-09-14: https://www.primevideo.com/ served 'Welcome to Prime Video'"
+  - domain: amazonvideo.com
+    include_subdomains: false
+    reason: "Prime Video legacy domain"
+    source: "Amazon core domain; DNS verified 2026-09-14"
+  - domain: aiv-cdn.net
+    include_subdomains: false
+    reason: "Prime Video CDN apex (ad-roll subdomains stay blockable)"
+    source: "service delivery domain; DNS verified 2026-09-14; not observable from official pages (verification level: DNS only)"
+  - domain: aiv-delivery.net
+    include_subdomains: false
+    reason: "Prime Video delivery apex (api.*.aiv-delivery.net is listed upstream; device test in Stage C)"
+    source: "service delivery domain; DNS verified 2026-09-14; not observable from official pages (verification level: DNS only)"
+  - domain: pv-cdn.net
+    include_subdomains: true
+    reason: "Prime Video video delivery (no listed names inside)"
+    source: "service delivery domain; DNS verified 2026-09-14; not observable from official pages (verification level: DNS only)"
+  - domain: disneyplus.com
+    include_subdomains: false
+    reason: "Disney+ official domain"
+    source: "official site verified 2026-09-14: https://www.disneyplus.com/ served 'Disney+'"
+  - domain: www.disneyplus.com
+    include_subdomains: false
+    reason: "Disney+ official site"
+    source: "official site verified 2026-09-14: https://www.disneyplus.com/ served 'Disney+'"
+  - domain: disneystreaming.com
+    include_subdomains: false
+    reason: "Disney Streaming services"
+    source: "Disney core domain; DNS verified 2026-09-14"
+  - domain: bamgrid.com
+    include_subdomains: true
+    reason: "Disney+ API and authentication"
+    source: "referenced by the official site https://www.disneyplus.com/ (verified 2026-09-14)"
+  - domain: disney-plus.net
+    include_subdomains: true
+    reason: "Disney+ assets"
+    source: "referenced by the official site https://www.disneyplus.com/ (verified 2026-09-14)"
+  - domain: dssott.com
+    include_subdomains: true
+    reason: "Disney+ video delivery"
+    source: "service delivery domain; DNS verified 2026-09-14; not observable from official pages (verification level: DNS only)"
+  - domain: dazn.com
+    include_subdomains: false
+    reason: "DAZN official domain"
+    source: "official site responded on https://www.dazn.com/ (verified 2026-09-14)"
+  - domain: www.dazn.com
+    include_subdomains: false
+    reason: "DAZN official site"
+    source: "official site responded on https://www.dazn.com/ (verified 2026-09-14)"
+  - domain: dazn-api.com
+    include_subdomains: false
+    reason: "DAZN streaming API"
+    source: "referenced by the official site https://www.dazn.com/ (verified 2026-09-14)"
+  - domain: indazn.com
+    include_subdomains: false
+    reason: "DAZN delivery apex (metrics/telemetry subdomains stay blockable)"
+    source: "referenced by the official site https://www.dazn.com/ (verified 2026-09-14)"
+  - domain: twitch.tv
+    include_subdomains: false
+    reason: "Twitch official domain"
+    source: "official site verified 2026-09-14: https://www.twitch.tv/ served 'Twitch'"
+  - domain: www.twitch.tv
+    include_subdomains: false
+    reason: "Twitch official site"
+    source: "official site verified 2026-09-14: https://www.twitch.tv/ served 'Twitch'"
+  - domain: gql.twitch.tv
+    include_subdomains: false
+    reason: "Twitch API"
+    source: "referenced by the official site https://www.twitch.tv/ (verified 2026-09-14)"
+  - domain: passport.twitch.tv
+    include_subdomains: false
+    reason: "Twitch authentication"
+    source: "referenced by the official site https://www.twitch.tv/ (verified 2026-09-14)"
+  - domain: id.twitch.tv
+    include_subdomains: false
+    reason: "Twitch identity/OAuth"
+    source: "host under the verified official domain twitch.tv; DNS verified 2026-09-14"
+  - domain: irc-ws.chat.twitch.tv
+    include_subdomains: false
+    reason: "Twitch chat"
+    source: "host under the verified official domain twitch.tv; DNS verified 2026-09-14"
+  - domain: ttvnw.net
+    include_subdomains: true
+    reason: "Twitch video streaming delivery; must never be blocked (CLAUDE.md §26)"
+    source: "referenced by the official site https://www.twitch.tv/ (verified 2026-09-14)"
+  - domain: jtvnw.net
+    include_subdomains: true
+    reason: "Twitch static assets"
+    source: "referenced by the official site https://www.twitch.tv/ (verified 2026-09-14)"
+  - domain: twitchcdn.net
+    include_subdomains: true
+    reason: "Twitch CDN"
+    source: "service delivery domain; DNS verified 2026-09-14; not observable from official pages (verification level: DNS only)"

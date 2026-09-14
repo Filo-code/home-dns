@@ -54,6 +54,22 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Dates are ISO 
 - 2026-09-13 — CLI `home-dns blocklists update|status|rollback`; `scripts/blocklists/measure_sources.py`; `network`-marked real-list test.
 - 2026-09-13 — Source schema: `max_age_hours` (48 for both HaGeZi lists) and optional `sanity` limits.
 
+### Added — A3 filtering policy
+- 2026-09-14 — Design `docs/specs/a3-filtering-policy.md`, ADR 0009, evaluation report `docs/research/2026-09-14-a3-policy-evaluation.md`.
+- 2026-09-14 — `core.policy.PolicyEngine`: pure decision for group + domain, with Pi-hole-compatible precedence and explanations.
+- 2026-09-14 — `core.regex`: portable POSIX-ERE subset validator, enforced for regex rules.
+- 2026-09-14 — 293 verified protected domains across italian, banking, technology, gaming, streaming, social and infrastructure. Each has a reason and an evidence source; subtree / exact / apex-guard tiers.
+- 2026-09-14 — Policies `standard` (Pro + TIF Mini), `gaming` (Normal + TIF Mini), `smart-tv` and `console` (Light + TIF Mini). HaGeZi Light and Normal added to the catalog.
+- 2026-09-14 — CLI `home-dns policy explain --group G DOMAIN…`.
+- 2026-09-14 — Scripts and tests:
+  - `scripts/blocklists/evaluate_policy.py`
+  - compatibility catalog `tests/data/compatibility.yaml`
+  - offline hostile-list regression tests
+  - `network` real-policy test
+
+### Changed — A3
+- 2026-09-14 — Tripwire "entry covers protected" check uses a parent index: O(1) per entry and deterministic reports (was O(entries × protected)).
+
 ### Changed — A2 parameter decisions (owner-approved 2026-09-13)
 - 2026-09-13 — Sanity limits configured for `hagezi-multi-pro` (180k–280k, ±5 %) and `hagezi-tif-mini` (140k–225k, +12 %/−8 %) as review thresholds.
 - 2026-09-13 — Invalid-rule hard guard lowered from 5 % to 1 %.

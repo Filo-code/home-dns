@@ -233,3 +233,35 @@ def test_sanity_within_limits_and_first_run() -> None:
     assert evaluate_sanity(_parsed(10), Delta(10, 1, 1), limits).verdict is Verdict.PASS
     assert evaluate_sanity(_parsed(10), None, limits).verdict is Verdict.PASS
     assert evaluate_sanity(_parsed(10), Delta(0, 10, 0), limits).verdict is Verdict.PASS
+
+
+def test_tripwire_reports_are_deterministic_for_wildcards_covering_several_protected() -> None:
+    protected = [
+        ProtectedDomain(
+            domain=f"{h}.auth.example", include_subdomains=False, reason="login", source="t"
+        )
+        for h in ("zeta", "alpha", "mid")
+    ]
+    for _ in range(5):
+        hits = find_tripwire_hits([BlockEntry("auth.example", True)], protected)
+        assert [(h.protected_domain, h.relation) for h in hits] == [
+            ("alpha.auth.example", "entry-covers-protected")
+        ]
+
+
+def test_tripwire_scales_to_real_list_sizes() -> None:
+    import time
+
+    protected = [
+        ProtectedDomain(
+            domain=f"svc{i}.brand{i}.example",
+            include_subdomains=bool(i % 2),
+            reason="scale test",
+            source="t",
+        )
+        for i in range(300)
+    ]
+    entries = [BlockEntry(f"host{i}.tracker{i % 5000}.example", True) for i in range(220_000)]
+    started = time.perf_counter()
+    assert find_tripwire_hits(entries, protected) == []
+    assert time.perf_counter() - started < 5.0

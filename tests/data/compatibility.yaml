@@ -1,0 +1,175 @@
+# Compatibility regression catalog (A3). Used by offline tests and scripts/blocklists/evaluate_policy.py.
+#
+# services[].required: endpoints that must be ALLOWED for every listed group, whatever the
+#   blocklists contain (they must be covered by protected domains or allow rules).
+#   Names under subtree-protected namespaces are realistic example hostnames.
+# must_stay_blockable: ad/telemetry names inside protected namespaces that must NOT be protected,
+#   so upstream lists can keep blocking them (guards against over-broad protection).
+schema_version: 1
+
+services:
+  - name: YouTube
+    groups: ["*"]
+    required: [youtube.com, www.youtube.com, m.youtube.com, youtubei.googleapis.com, youtu.be,
+               youtube-nocookie.com, i.ytimg.com, yt3.ggpht.com, googlevideo.com,
+               rr3---sn-hpa7kn7s.googlevideo.com, redirector.googlevideo.com]
+  - name: Twitch
+    groups: ["*"]
+    required: [twitch.tv, www.twitch.tv, gql.twitch.tv, id.twitch.tv, passport.twitch.tv,
+               irc-ws.chat.twitch.tv, usher.ttvnw.net, video-weaver.fra05.hls.ttvnw.net,
+               static-cdn.jtvnw.net, assets.twitchcdn.net]
+  - name: Netflix
+    groups: ["*"]
+    required: [netflix.com, www.netflix.com, api-global.netflix.com, assets.nflxext.com,
+               occ-0-2774-2773.1.nflxso.net, ipv4-c001-mxp001-ix.1.oca.nflxvideo.net, art-s.nflximg.net]
+  - name: Prime Video
+    groups: ["*"]
+    required: [primevideo.com, www.primevideo.com, amazonvideo.com, m.media-amazon.com,
+               images-na.ssl-images-amazon.com, aiv-cdn.net, aiv-delivery.net, dash.pv-cdn.net]
+  - name: Disney+
+    groups: ["*"]
+    required: [disneyplus.com, www.disneyplus.com, disneystreaming.com, global.edge.bamgrid.com,
+               prod-static.disney-plus.net, vod-l3c-eu-east-1.media.dssott.com]
+  - name: DAZN
+    groups: ["*"]
+    required: [dazn.com, www.dazn.com, dazn-api.com, indazn.com]
+  - name: Google
+    groups: ["*"]
+    required: [google.com, www.google.com, accounts.google.com, gmail.com, mail.google.com,
+               drive.google.com, www.gstatic.com, fonts.gstatic.com, fonts.googleapis.com,
+               play.google.com, play.googleapis.com, android.clients.google.com,
+               connectivitycheck.gstatic.com, update.googleapis.com, dl.google.com]
+  - name: Microsoft
+    groups: ["*"]
+    required: [microsoft.com, www.microsoft.com, login.microsoftonline.com, login.live.com,
+               account.microsoft.com, outlook.live.com, office.com, www.msftconnecttest.com,
+               dns.msftncsi.com, download.windowsupdate.com, fe3.delivery.mp.microsoft.com,
+               dl.delivery.mp.microsoft.com, sls.update.microsoft.com, geo.prod.do.dsp.mp.microsoft.com]
+  - name: Apple
+    groups: ["*"]
+    required: [apple.com, www.apple.com, icloud.com, www.icloud.com, appleid.apple.com,
+               account.apple.com, idmsa.apple.com, gsa.apple.com, albert.apple.com, gs.apple.com,
+               captive.apple.com, mesu.apple.com, swscan.apple.com, swcdn.apple.com,
+               updates.cdn-apple.com, gdmf.apple.com, apps.apple.com, itunes.apple.com,
+               is1-ssl.mzstatic.com, ocsp.apple.com, courier.push.apple.com, time.apple.com]
+  - name: Amazon
+    groups: ["*"]
+    required: [amazon.it, www.amazon.it, amazon.com, www.amazon.com, m.media-amazon.com]
+  - name: Steam
+    groups: ["*"]
+    required: [store.steampowered.com, api.steampowered.com, login.steampowered.com,
+               steamcommunity.com, cdn.akamai.steamstatic.com, cm1-ams1.cm.steamserver.net,
+               cache1-mxp1.steamcontent.com]
+  - name: Xbox
+    groups: ["*"]
+    required: [xbox.com, www.xbox.com, gamepass.com, user.auth.xboxlive.com, xsts.auth.xboxlive.com,
+               title.auth.xboxlive.com, device.auth.xboxlive.com, title.mgt.xboxlive.com,
+               assets1.xboxlive.com, xflight.xboxlive.com, profile.xboxlive.com,
+               userpresence.xboxlive.com, peoplehub.xboxlive.com, sessiondirectory.xboxlive.com,
+               displaycatalog.mp.microsoft.com, licensing.mp.microsoft.com,
+               purchase.mp.microsoft.com, collections.mp.microsoft.com,
+               storeedgefd.dsx.mp.microsoft.com, assets1.xboxservices.com,
+               dl.delivery.mp.microsoft.com, playfabapi.com]
+  - name: PlayStation
+    groups: ["*"]
+    required: [playstation.com, www.playstation.com, store.playstation.com, playstation.net,
+               auth.api.sonyentertainmentnetwork.com, my.account.sony.com, ca.account.sony.com]
+  - name: Instagram
+    groups: ["*"]
+    required: [instagram.com, www.instagram.com, i.instagram.com, scontent-mxp1-1.cdninstagram.com]
+  - name: Facebook
+    groups: ["*"]
+    required: [facebook.com, www.facebook.com, m.facebook.com, graph.facebook.com, messenger.com,
+               static.xx.fbcdn.net, scontent.xx.fbcdn.net]
+  - name: TikTok
+    groups: ["*"]
+    required: [tiktok.com, www.tiktok.com, p16-sign-va.tiktokcdn.com, api.tiktokv.com]
+  - name: X
+    groups: ["*"]
+    required: [x.com, twitter.com, api.x.com, t.co, pbs.twimg.com, abs.twimg.com, video.twimg.com]
+  - name: Reddit
+    groups: ["*"]
+    required: [reddit.com, www.reddit.com, redd.it, i.redd.it, v.redd.it, www.redditstatic.com, redditmedia.com]
+  - name: Telegram
+    groups: ["*"]
+    required: [telegram.org, web.telegram.org, core.telegram.org, t.me, telegram.me, api.telegram.org]
+  - name: WhatsApp
+    groups: ["*"]
+    required: [whatsapp.com, www.whatsapp.com, web.whatsapp.com, g.whatsapp.net, mmg.whatsapp.net, static.whatsapp.net]
+  - name: Discord
+    groups: ["*"]
+    required: [discord.com, discord.gg, gateway.discord.gg, discordapp.com, cdn.discordapp.com,
+               media.discordapp.net, images-ext-1.discordapp.net, milan1234.discord.media]
+  - name: Snapchat
+    groups: ["*"]
+    required: [snapchat.com, www.snapchat.com, app.snapchat.com, cf-st.sc-cdn.net, bolt-gcdn.sc-cdn.net]
+  - name: Italian public services
+    groups: ["*"]
+    required: [poste.it, www.poste.it, posteid.poste.it, www.spid.gov.it, www.pagopa.gov.it,
+               checkout.pagopa.it, www.agenziaentrate.gov.it, iampe.agenziaentrate.gov.it,
+               www.inps.it, ioapp.it, app-backend.io.italia.it, idserver.servizicie.interno.gov.it]
+  - name: Banks and payments
+    groups: ["*"]
+    required: [www.intesasanpaolo.com, www.unicredit.it, www.bancobpm.it, www.bper.it, www.mps.it,
+               www.bancamediolanum.it, it.finecobank.com, www.fineco.it, www.sella.it, www.credem.it,
+               www.credit-agricole.it, www.nexi.it, www.paypal.com, api-m.paypal.com,
+               www.paypalobjects.com, stripe.com, js.stripe.com, checkout.stripe.com, api.stripe.com]
+  - name: Infrastructure
+    groups: ["*"]
+    required: [a.root-servers.net, a.gtld-servers.net, ocsp.digicert.com, ocsp.pki.goog,
+               c.pki.goog, x1.c.lencr.org, 0.pool.ntp.org, time.windows.com, time.google.com,
+               archive.raspberrypi.com, deb.debian.org, security.debian.org, cdn.jsdelivr.net,
+               raw.githubusercontent.com, github.com, objects.githubusercontent.com,
+               detectportal.firefox.com]
+
+must_stay_blockable:
+  - beacons.xboxlive.com
+  - track.mp.microsoft.com
+  - crash.steampowered.com
+  - metrics.media-amazon.com
+  - s3-dub-ww.cf.videorolls.row.aiv-cdn.net
+  - metrics.indazn.com
+  - telemetry.indazn.com
+  - sonar-ams.xx.fbcdn.net
+  - log.tiktokv.com
+  - ad.tiktokv.com
+  - events.redditmedia.com
+  - pixel.redditmedia.com
+  - promote.telegram.org
+  - ads.telegram.org
+  - privatestats.whatsapp.net
+  - crashlogs.whatsapp.net
+  - client-metrics.discordapp.net
+  - ads-interfaces.sc-cdn.net
+  - ad.playstation.net
+  - 92ab.playfabapi.com
+  - customerevents.netflix.com
+  - ichnaea.netflix.com
+  - an.facebook.com
+  - pixel.facebook.com
+  - analytics.tiktok.com
+  - ads-api.twitter.com
+  - tr.snapchat.com
+  - evil-tenant.cloudfront.net
+  - phishing-tenant.blob.core.windows.net
+  - lure.googleusercontent.com
+  - bad.storage.googleapis.com
+  - telemetry.microsoft.com
+  - samsungads.com
+
+# Names that no evaluated list blocks today but that are NOT protected (vendor-specific; device
+# brands are unknown). Reported by the evaluation script only.
+watch:
+  - samsungcloudsolution.com
+  - samsungotn.net
+  - lgtvsdp.com
+  - lgappstv.com
+  - tools.l.google.com
+  - epicgames.com
+  - epicgames.dev
+  - battle.net
+  - ea.com
+  - ubisoft.com
+  - riotgames.com
+  - easyanticheat.net
+  - battleye.com

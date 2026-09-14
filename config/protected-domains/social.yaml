@@ -1,0 +1,234 @@
+# Protected domains: social (ADR 0003, A3 design docs/specs/a3-filtering-policy.md).
+# Domains here are never blocked. A deny rule or regex touching one is a configuration error,
+# and the A2 pipeline aborts any blocklist deployment that contains one.
+# include_subdomains: true only for single-tenant namespaces with no listed names inside
+# (checked against 8 real HaGeZi lists on 2026-09-14); otherwise exact.
+schema_version: 1
+category: social
+description: "Core domains of Instagram, Facebook, TikTok, X, Reddit, Telegram, WhatsApp, Discord and Snapchat (their ad/telemetry subdomains stay blockable)."
+
+domains:
+  - domain: instagram.com
+    include_subdomains: false
+    reason: "Instagram official domain"
+    source: "official site verified 2026-09-14: https://www.instagram.com/ served 'Instagram'"
+  - domain: www.instagram.com
+    include_subdomains: false
+    reason: "Instagram site"
+    source: "official site verified 2026-09-14: https://www.instagram.com/ served 'Instagram'"
+  - domain: i.instagram.com
+    include_subdomains: false
+    reason: "Instagram app API"
+    source: "host under the verified official domain instagram.com; DNS verified 2026-09-14"
+  - domain: cdninstagram.com
+    include_subdomains: true
+    reason: "Instagram media"
+    source: "referenced by the official site https://www.instagram.com/ (verified 2026-09-14)"
+  - domain: facebook.com
+    include_subdomains: false
+    reason: "Facebook official domain"
+    source: "official site verified 2026-09-14: https://www.facebook.com/ served 'Facebook'"
+  - domain: www.facebook.com
+    include_subdomains: false
+    reason: "Facebook site"
+    source: "official site verified 2026-09-14: https://www.facebook.com/ served 'Facebook'"
+  - domain: m.facebook.com
+    include_subdomains: false
+    reason: "Facebook mobile site"
+    source: "host under the verified official domain facebook.com; DNS verified 2026-09-14"
+  - domain: graph.facebook.com
+    include_subdomains: false
+    reason: "Facebook and Instagram app API"
+    source: "host under the verified official domain facebook.com; DNS verified 2026-09-14"
+  - domain: messenger.com
+    include_subdomains: false
+    reason: "Messenger web client"
+    source: "Meta core domain; DNS verified 2026-09-14"
+  - domain: fbcdn.net
+    include_subdomains: false
+    reason: "Meta media CDN apex (sonar/telemetry subdomains stay blockable)"
+    source: "referenced by the official site https://www.facebook.com/ (verified 2026-09-14)"
+  - domain: static.xx.fbcdn.net
+    include_subdomains: false
+    reason: "Meta static assets"
+    source: "host under the verified official domain fbcdn.net; DNS verified 2026-09-14"
+  - domain: scontent.xx.fbcdn.net
+    include_subdomains: false
+    reason: "Meta photo/video content"
+    source: "host under the verified official domain fbcdn.net; DNS verified 2026-09-14"
+  - domain: tiktok.com
+    include_subdomains: false
+    reason: "TikTok official domain"
+    source: "official site verified 2026-09-14: https://www.tiktok.com/ served 'TikTok'"
+  - domain: www.tiktok.com
+    include_subdomains: false
+    reason: "TikTok site"
+    source: "official site verified 2026-09-14: https://www.tiktok.com/ served 'TikTok'"
+  - domain: tiktokcdn.com
+    include_subdomains: true
+    reason: "TikTok video and image CDN (no listed names inside)"
+    source: "referenced by the official site https://www.tiktok.com/ (verified 2026-09-14)"
+  - domain: tiktokv.com
+    include_subdomains: false
+    reason: "TikTok app API apex (log/ad/location subdomains stay blockable)"
+    source: "TikTok app API domain; DNS verified 2026-09-14"
+  - domain: api.tiktokv.com
+    include_subdomains: false
+    reason: "TikTok app API"
+    source: "host under the verified official domain tiktokv.com; DNS verified 2026-09-14"
+  - domain: x.com
+    include_subdomains: false
+    reason: "X official domain"
+    source: "official site verified 2026-09-14: https://x.com/ served 'X'"
+  - domain: twitter.com
+    include_subdomains: false
+    reason: "X legacy domain"
+    source: "X core domain; DNS verified 2026-09-14"
+  - domain: api.x.com
+    include_subdomains: false
+    reason: "X (Twitter) API"
+    source: "referenced by the official site https://x.com/ (verified 2026-09-14)"
+  - domain: t.co
+    include_subdomains: false
+    reason: "X link shortener"
+    source: "referenced by the official site https://x.com/ (verified 2026-09-14)"
+  - domain: twimg.com
+    include_subdomains: true
+    reason: "X (Twitter) media CDN"
+    source: "referenced by the official site https://x.com/ (verified 2026-09-14)"
+  - domain: reddit.com
+    include_subdomains: false
+    reason: "Reddit official domain"
+    source: "official site verified 2026-09-14: https://www.reddit.com/ served 'Reddit'"
+  - domain: www.reddit.com
+    include_subdomains: false
+    reason: "Reddit site"
+    source: "official site verified 2026-09-14: https://www.reddit.com/ served 'Reddit'"
+  - domain: redd.it
+    include_subdomains: false
+    reason: "Reddit short links"
+    source: "Reddit core domain; DNS verified 2026-09-14"
+  - domain: i.redd.it
+    include_subdomains: false
+    reason: "Reddit images"
+    source: "Reddit core domain; DNS verified 2026-09-14"
+  - domain: v.redd.it
+    include_subdomains: false
+    reason: "Reddit videos"
+    source: "Reddit core domain; DNS verified 2026-09-14"
+  - domain: redditstatic.com
+    include_subdomains: true
+    reason: "Reddit static assets"
+    source: "referenced by the official site https://www.reddit.com/ (verified 2026-09-14)"
+  - domain: redditmedia.com
+    include_subdomains: false
+    reason: "Reddit media apex (events/pixel subdomains stay blockable)"
+    source: "Reddit core domain; DNS verified 2026-09-14"
+  - domain: telegram.org
+    include_subdomains: false
+    reason: "Telegram official domain (ads/promote subdomains stay blockable)"
+    source: "official site verified 2026-09-14: https://telegram.org/ served 'Telegram Messenger'"
+  - domain: web.telegram.org
+    include_subdomains: false
+    reason: "Telegram web client"
+    source: "host under the verified official domain telegram.org; DNS verified 2026-09-14"
+  - domain: core.telegram.org
+    include_subdomains: false
+    reason: "Telegram API documentation and core services"
+    source: "host under the verified official domain telegram.org; DNS verified 2026-09-14"
+  - domain: t.me
+    include_subdomains: false
+    reason: "Telegram links"
+    source: "Telegram core domain; DNS verified 2026-09-14"
+  - domain: telegram.me
+    include_subdomains: false
+    reason: "Telegram links"
+    source: "Telegram core domain; DNS verified 2026-09-14"
+  - domain: whatsapp.com
+    include_subdomains: false
+    reason: "WhatsApp official domain"
+    source: "official site verified 2026-09-14: https://www.whatsapp.com/ served 'WhatsApp'"
+  - domain: www.whatsapp.com
+    include_subdomains: false
+    reason: "WhatsApp site"
+    source: "official site verified 2026-09-14: https://www.whatsapp.com/ served 'WhatsApp'"
+  - domain: web.whatsapp.com
+    include_subdomains: false
+    reason: "WhatsApp web client"
+    source: "host under the verified official domain whatsapp.com; DNS verified 2026-09-14"
+  - domain: whatsapp.net
+    include_subdomains: false
+    reason: "WhatsApp messaging apex (stats/crash subdomains stay blockable)"
+    source: "referenced by the official site https://www.whatsapp.com/ (verified 2026-09-14)"
+  - domain: g.whatsapp.net
+    include_subdomains: false
+    reason: "WhatsApp chat endpoint"
+    source: "host under the verified official domain whatsapp.net; DNS verified 2026-09-14"
+  - domain: mmg.whatsapp.net
+    include_subdomains: false
+    reason: "WhatsApp media"
+    source: "host under the verified official domain whatsapp.net; DNS verified 2026-09-14"
+  - domain: static.whatsapp.net
+    include_subdomains: false
+    reason: "WhatsApp static assets"
+    source: "referenced by the official site https://www.whatsapp.com/ (verified 2026-09-14)"
+  - domain: discord.com
+    include_subdomains: false
+    reason: "Discord official domain"
+    source: "official site verified 2026-09-14: https://discord.com/ served 'Discord'"
+  - domain: discord.gg
+    include_subdomains: false
+    reason: "Discord invites"
+    source: "Discord core domain; DNS verified 2026-09-14"
+  - domain: gateway.discord.gg
+    include_subdomains: false
+    reason: "Discord real-time gateway"
+    source: "host under the verified official domain discord.gg; DNS verified 2026-09-14"
+  - domain: discordapp.com
+    include_subdomains: false
+    reason: "Discord API and assets"
+    source: "referenced by the official site https://discord.com/ (verified 2026-09-14)"
+  - domain: cdn.discordapp.com
+    include_subdomains: false
+    reason: "Discord CDN"
+    source: "referenced by the official site https://discord.com/ (verified 2026-09-14)"
+  - domain: discordapp.net
+    include_subdomains: false
+    reason: "Discord media apex (client-metrics stays blockable)"
+    source: "Discord core domain; DNS verified 2026-09-14"
+  - domain: media.discordapp.net
+    include_subdomains: false
+    reason: "Discord media proxy"
+    source: "host under the verified official domain discordapp.net; DNS verified 2026-09-14"
+  - domain: images-ext-1.discordapp.net
+    include_subdomains: false
+    reason: "Discord external image proxy"
+    source: "host under the verified official domain discordapp.net; DNS verified 2026-09-14"
+  - domain: discord.media
+    include_subdomains: true
+    reason: "Discord voice servers (no listed names inside)"
+    source: "service delivery domain; DNS verified 2026-09-14; not observable from official pages (verification level: DNS only)"
+  - domain: snapchat.com
+    include_subdomains: false
+    reason: "Snapchat official domain"
+    source: "official site verified 2026-09-14: https://www.snapchat.com/ served 'Snapchat'"
+  - domain: www.snapchat.com
+    include_subdomains: false
+    reason: "Snapchat site"
+    source: "official site verified 2026-09-14: https://www.snapchat.com/ served 'Snapchat'"
+  - domain: app.snapchat.com
+    include_subdomains: false
+    reason: "Snapchat app API"
+    source: "host under the verified official domain snapchat.com; DNS verified 2026-09-14"
+  - domain: sc-cdn.net
+    include_subdomains: false
+    reason: "Snap CDN apex (ads-interfaces stays blockable)"
+    source: "Snap core domain; DNS verified 2026-09-14"
+  - domain: cf-st.sc-cdn.net
+    include_subdomains: false
+    reason: "Snap static content"
+    source: "host under the verified official domain sc-cdn.net; DNS verified 2026-09-14"
+  - domain: bolt-gcdn.sc-cdn.net
+    include_subdomains: false
+    reason: "Snap media"
+    source: "host under the verified official domain sc-cdn.net; DNS verified 2026-09-14"

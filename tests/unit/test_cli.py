@@ -165,12 +165,13 @@ def test_repository_filtering_config_is_reported() -> None:
     code, out, _ = _run("validate-config")
     assert code == 0
     assert "groups=6" in out
-    assert "sources=2" in out
-    assert "no protected domains defined" in out
+    assert "policies=4" in out
+    assert "sources=4" in out
+    assert "no protected domains defined" not in out
 
 
-def test_repository_config_fails_strict_until_protected_domains_exist() -> None:
-    assert _run("validate-config", "--strict")[0] == 1
+def test_repository_config_passes_strict_now_that_protected_domains_exist() -> None:
+    assert _run("validate-config", "--strict")[0] == 0
 
 
 def test_filtering_schema_error_exits_2(make_config_dir: MakeConfigDir) -> None:
@@ -341,3 +342,89 @@ def test_blocklists_unresolved_data_dir(make_config_dir: MakeConfigDir) -> None:
     text = DEV_PROFILE.replace("data_dir: .local/data", 'data_dir: "<<AUDIT:paths.data_dir>>"')
     code, _, err = _bl(make_config_dir(text), "status")
     assert code == 1 and "unresolved" in err
+
+
+# ------------------------------------------------------------------ A3: policy explain
+
+
+def _explain(config_dir: Path | None, *argv: str) -> tuple[int, str, str]:
+    base = ["policy", "explain", *argv]
+    if config_dir is not None:
+        base += ["--config-dir", str(config_dir)]
+    out, err = io.StringIO(), io.StringIO()
+    return cli.main(base, out=out, err=err, now=lambda: FIXED_NOW), out.getvalue(), err.getvalue()
+
+
+def test_policy_explain_repository_config_protected_domain() -> None:
+    code, out, _ = _explain(None, "--group", "SMART-TV", "rr1---sn-x.googlevideo.com")
+    assert code == 0
+    assert "group SMART-TV uses: hagezi-light, hagezi-tif-mini" in out
+    assert "allowed (protected)" in out
+
+
+def test_policy_explain_uses_active_artifacts(make_config_dir: MakeConfigDir) -> None:
+    config_dir = make_config_dir(DEV_PROFILE)
+    assert _bl(config_dir, "update", "--apply")[0] == 0
+    code, out, _ = _explain(
+        config_dir,
+        "--group",
+        "DEFAULT",
+        "ads3.blocked.example",
+        "mal3.blocked.example",
+        "sub.googlevideo.example",
+        "--format",
+        "json",
+    )
+    payload = json.loads(out)
+    assert (
+        code == 0 and payload["policy_sources"] == ["list-a", "list-b"] and payload["notes"] == []
+    )
+    verdicts = {d["domain"]: (d["verdict"], d["reason"]) for d in payload["decisions"]}
+    assert verdicts["ads3.blocked.example"] == ("blocked", "blocklist")
+    assert verdicts["mal3.blocked.example"] == ("blocked", "blocklist")
+    assert verdicts["sub.googlevideo.example"] == ("allowed", "protected")
+
+    code, out, _ = _explain(config_dir, "--group", "SMART-TV", "ads3.blocked.example")
+    assert code == 0 and "allowed (default)" in out  # list-a is not in the conservative policy
+
+
+def test_policy_explain_notes_missing_artifacts(make_config_dir: MakeConfigDir) -> None:
+    code, out, _ = _explain(make_config_dir(DEV_PROFILE), "--group", "DEFAULT", "a.example")
+    assert code == 0 and "no active artifact" in out
+
+
+def test_policy_explain_invalid_input_and_config(
+    make_config_dir: MakeConfigDir, tmp_path: Path
+) -> None:
+    config_dir = make_config_dir(DEV_PROFILE)
+    assert _explain(config_dir, "--group", "GUEST", "a.example")[0] == 2
+    assert _explain(config_dir, "--group", "DEFAULT", "*.example")[0] == 2
+    assert _explain(tmp_path / "missing", "--group", "DEFAULT", "a.example")[0] == 2
+    bad = _EXPIRING_ALLOW.replace("[SMART-TV]", "[GHOST]")
+    assert (
+        _explain(
+            make_config_dir(DEV_PROFILE, **{"rules__allow.yaml": bad}),
+            "--group",
+            "DEFAULT",
+            "a.example",
+        )[0]
+        == 2
+    )
+
+
+def test_policy_explain_unresolved_data_dir_and_corrupt_artifact(
+    make_config_dir: MakeConfigDir,
+) -> None:
+    text = DEV_PROFILE.replace("data_dir: .local/data", 'data_dir: "<<AUDIT:paths.data_dir>>"')
+    code, out, _ = _explain(make_config_dir(text), "--group", "DEFAULT", "a.example")
+    assert code == 0 and "unresolved" in out
+
+
+def test_policy_explain_reports_unreadable_artifact(make_config_dir: MakeConfigDir) -> None:
+    config_dir = make_config_dir(DEV_PROFILE)
+    assert _bl(config_dir, "update", "--apply", "--source", "list-a")[0] == 0
+    store = config_dir.parent / ".local" / "data" / "blocklists" / "list-a" / "artifacts"
+    for artifact in store.glob("*.txt"):
+        artifact.write_text("tampered\n")
+    code, out, _ = _explain(config_dir, "--group", "DEFAULT", "a.example")
+    assert code == 0 and "unreadable" in out

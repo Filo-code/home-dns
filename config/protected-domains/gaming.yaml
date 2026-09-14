@@ -1,0 +1,166 @@
+# Protected domains: gaming (ADR 0003, A3 design docs/specs/a3-filtering-policy.md).
+# Domains here are never blocked. A deny rule or regex touching one is a configuration error,
+# and the A2 pipeline aborts any blocklist deployment that contains one.
+# include_subdomains: true only for single-tenant namespaces with no listed names inside
+# (checked against 8 real HaGeZi lists on 2026-09-14); otherwise exact.
+schema_version: 1
+category: gaming
+description: "Steam, Xbox network, Microsoft Store and PlayStation Network."
+
+domains:
+  - domain: steampowered.com
+    include_subdomains: false
+    reason: "Steam official domain (crash.steampowered.com stays blockable)"
+    source: "official site verified 2026-09-14: https://store.steampowered.com/ served 'Welcome to Steam'"
+  - domain: store.steampowered.com
+    include_subdomains: false
+    reason: "Steam store"
+    source: "host under the verified official domain steampowered.com; DNS verified 2026-09-14"
+  - domain: api.steampowered.com
+    include_subdomains: false
+    reason: "Steam Web API"
+    source: "host under the verified official domain steampowered.com; DNS verified 2026-09-14"
+  - domain: login.steampowered.com
+    include_subdomains: false
+    reason: "Steam sign-in"
+    source: "host under the verified official domain steampowered.com; DNS verified 2026-09-14"
+  - domain: help.steampowered.com
+    include_subdomains: false
+    reason: "Steam support"
+    source: "host under the verified official domain steampowered.com; DNS verified 2026-09-14"
+  - domain: steamcommunity.com
+    include_subdomains: true
+    reason: "Steam community and authentication"
+    source: "referenced by the official site https://store.steampowered.com/ (verified 2026-09-14)"
+  - domain: steamstatic.com
+    include_subdomains: true
+    reason: "Steam static CDN"
+    source: "referenced by the official site https://store.steampowered.com/ (verified 2026-09-14)"
+  - domain: steamserver.net
+    include_subdomains: true
+    reason: "Steam connection servers"
+    source: "service delivery domain; DNS verified 2026-09-14; not observable from official pages (verification level: DNS only)"
+  - domain: steamcontent.com
+    include_subdomains: true
+    reason: "Steam game download content servers"
+    source: "service delivery domain; DNS verified 2026-09-14; not observable from official pages (verification level: DNS only)"
+  - domain: xbox.com
+    include_subdomains: false
+    reason: "Xbox official domain"
+    source: "official site verified 2026-09-14: https://www.xbox.com/ served 'Sito ufficiale XBOX'"
+  - domain: www.xbox.com
+    include_subdomains: false
+    reason: "Xbox official site"
+    source: "official site verified 2026-09-14: https://www.xbox.com/ served 'Sito ufficiale XBOX'"
+  - domain: xboxservices.com
+    include_subdomains: true
+    reason: "Xbox services (no listed names inside)"
+    source: "referenced by the official site https://www.xbox.com/ (verified 2026-09-14)"
+  - domain: gamepass.com
+    include_subdomains: false
+    reason: "Xbox Game Pass"
+    source: "Microsoft core domain; DNS verified 2026-09-14"
+  - domain: xboxlive.com
+    include_subdomains: false
+    reason: "Xbox network apex (beacons.xboxlive.com stays blockable)"
+    source: "Microsoft Learn, Xbox services authentication (https://learn.microsoft.com/en-us/gaming/gdk/docs/services/fundamentals/s2s-auth-calls/service-authentication/live-xbox-live-authentication)"
+  - domain: user.auth.xboxlive.com
+    include_subdomains: false
+    reason: "Xbox user authentication"
+    source: "Microsoft Learn, Xbox services authentication (https://learn.microsoft.com/en-us/gaming/gdk/docs/services/fundamentals/s2s-auth-calls/service-authentication/live-xbox-live-authentication)"
+  - domain: xsts.auth.xboxlive.com
+    include_subdomains: false
+    reason: "Xbox security token service"
+    source: "Microsoft Learn, Xbox services authentication (https://learn.microsoft.com/en-us/gaming/gdk/docs/services/fundamentals/s2s-auth-calls/service-authentication/live-xbox-live-authentication)"
+  - domain: title.auth.xboxlive.com
+    include_subdomains: false
+    reason: "Xbox network title authentication"
+    source: "host under the verified official domain xboxlive.com; DNS verified 2026-09-14"
+  - domain: device.auth.xboxlive.com
+    include_subdomains: false
+    reason: "Xbox network device authentication"
+    source: "host under the verified official domain xboxlive.com; DNS verified 2026-09-14"
+  - domain: title.mgt.xboxlive.com
+    include_subdomains: false
+    reason: "Xbox network title management"
+    source: "host under the verified official domain xboxlive.com; DNS verified 2026-09-14"
+  - domain: assets1.xboxlive.com
+    include_subdomains: false
+    reason: "Xbox network content assets"
+    source: "host under the verified official domain xboxlive.com; DNS verified 2026-09-14"
+  - domain: xflight.xboxlive.com
+    include_subdomains: false
+    reason: "Xbox network flighting/updates"
+    source: "host under the verified official domain xboxlive.com; DNS verified 2026-09-14"
+  - domain: profile.xboxlive.com
+    include_subdomains: false
+    reason: "Xbox network profile service"
+    source: "host under the verified official domain xboxlive.com; DNS verified 2026-09-14"
+  - domain: userpresence.xboxlive.com
+    include_subdomains: false
+    reason: "Xbox network presence"
+    source: "host under the verified official domain xboxlive.com; DNS verified 2026-09-14"
+  - domain: peoplehub.xboxlive.com
+    include_subdomains: false
+    reason: "Xbox network friends and party roster"
+    source: "host under the verified official domain xboxlive.com; DNS verified 2026-09-14"
+  - domain: sessiondirectory.xboxlive.com
+    include_subdomains: false
+    reason: "Xbox network multiplayer sessions and matchmaking"
+    source: "host under the verified official domain xboxlive.com; DNS verified 2026-09-14"
+  - domain: displaycatalog.mp.microsoft.com
+    include_subdomains: false
+    reason: "Microsoft Store catalog (track.mp.microsoft.com stays blockable)"
+    source: "host under the verified official domain microsoft.com; DNS verified 2026-09-14"
+  - domain: licensing.mp.microsoft.com
+    include_subdomains: false
+    reason: "Microsoft Store licensing (track.mp.microsoft.com stays blockable)"
+    source: "host under the verified official domain microsoft.com; DNS verified 2026-09-14"
+  - domain: purchase.mp.microsoft.com
+    include_subdomains: false
+    reason: "Microsoft Store purchases (track.mp.microsoft.com stays blockable)"
+    source: "host under the verified official domain microsoft.com; DNS verified 2026-09-14"
+  - domain: collections.mp.microsoft.com
+    include_subdomains: false
+    reason: "Microsoft Store owned games and Game Pass entitlements (track.mp.microsoft.com stays blockable)"
+    source: "host under the verified official domain microsoft.com; DNS verified 2026-09-14"
+  - domain: storeedgefd.dsx.mp.microsoft.com
+    include_subdomains: false
+    reason: "Microsoft Store store front end (track.mp.microsoft.com stays blockable)"
+    source: "host under the verified official domain microsoft.com; DNS verified 2026-09-14"
+  - domain: playfabapi.com
+    include_subdomains: false
+    reason: "PlayFab multiplayer backend apex (per-title subdomains stay blockable)"
+    source: "Microsoft PlayFab game services; DNS verified 2026-09-14"
+  - domain: playstation.com
+    include_subdomains: false
+    reason: "PlayStation official domain"
+    source: "official site verified 2026-09-14: https://www.playstation.com/ served 'Sito ufficiale PlayStation'"
+  - domain: www.playstation.com
+    include_subdomains: false
+    reason: "PlayStation official site"
+    source: "official site verified 2026-09-14: https://www.playstation.com/ served 'Sito ufficiale PlayStation'"
+  - domain: store.playstation.com
+    include_subdomains: false
+    reason: "PlayStation Store"
+    source: "host under the verified official domain playstation.com; DNS verified 2026-09-14"
+  - domain: playstation.net
+    include_subdomains: false
+    reason: "PlayStation Network apex (ad/event subdomains stay blockable)"
+    source: "referenced by the official site https://www.playstation.com/ (verified 2026-09-14)"
+  - domain: sonyentertainmentnetwork.com
+    include_subdomains: false
+    reason: "PlayStation Network account domain"
+    source: "referenced by the official site https://www.playstation.com/ (verified 2026-09-14)"
+  - domain: auth.api.sonyentertainmentnetwork.com
+    include_subdomains: false
+    reason: "PlayStation Network authentication API"
+    source: "host under the verified official domain sonyentertainmentnetwork.com; DNS verified 2026-09-14"
+  - domain: my.account.sony.com
+    include_subdomains: false
+    reason: "Sony account sign-in"
+    source: "Sony account domain; DNS verified 2026-09-14"
+  - domain: ca.account.sony.com
+    include_subdomains: false
+    reason: "Sony account authentication"
+    source: "Sony account domain; DNS verified 2026-09-14"

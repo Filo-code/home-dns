@@ -11,7 +11,6 @@ from pathlib import Path
 import pytest
 
 from home_dns.config.filtering import load_filtering_config
-from home_dns.core.filtering import ProtectedDomain
 from home_dns.pipeline.blocklists import Outcome, PipelineOptions, Stage, StageStatus, run_update
 from home_dns.pipeline.fetch import HttpxFetcher
 from home_dns.providers.mock import MockDnsProvider
@@ -24,10 +23,7 @@ def test_approved_sources_pass_the_pipeline_from_both_mirrors(
 ) -> None:
     now = datetime.now(UTC)
     config = load_filtering_config(repo_config_dir, now=now).config
-    # A protected domain that must not appear in either list, so the tripwire actually runs.
-    protected = [
-        ProtectedDomain(domain="googlevideo.com", reason="YouTube video", source="CLAUDE.md §25")
-    ]
+    protected = config.protected_domains()  # the real A3 protected set
     for source in config.sources:
         for role in ("primary", "fallback"):
             url = source.urls.primary if role == "primary" else source.urls.fallback

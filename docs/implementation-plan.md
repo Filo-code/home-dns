@@ -103,7 +103,7 @@ ADR 0001 gates G1–G5 still block Stage C. Gate G6 still blocks device-policy r
   - rollback restores the exact previous artifact
 - **Depends on:** A1
 
-### A3 — Filtering logic
+### A3 — Filtering logic ✅ (done 2026-09-14, see [ADR 0009](adr/0009-filtering-policy.md))
 - **Goal:** decide *what* each group blocks, and prove it with tests.
 - **Deliverables:**
   - **List catalog research** per category — ads/trackers, malware/phishing, telemetry, gambling, adult, Italian ads/trackers:

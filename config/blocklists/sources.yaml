@@ -43,3 +43,30 @@ sources:
       max_entries: 225000
       max_added_ratio: 0.12
       max_removed_ratio: 0.08
+
+  # Added in A3 (evaluation of Light vs Normal for SMART-TV / XBOX / GAMING, owner-requested).
+  # Sanity limits are intentionally absent until measured over history and approved (A2 process):
+  # the pipeline reports "no approved sanity limits" and still applies every hard gate.
+  - id: hagezi-light
+    name: HaGeZi Multi LIGHT
+    homepage: https://github.com/hagezi/dns-blocklists
+    license: GPL-3.0
+    format: adblock
+    categories: [advertising, tracking, telemetry, malware]
+    urls:
+      primary: https://cdn.jsdelivr.net/gh/hagezi/dns-blocklists@latest/adblock/light.txt
+      fallback: https://raw.githubusercontent.com/hagezi/dns-blocklists/main/adblock/light.txt
+    update_interval_hours: 24   # same approved cadence as the other sources
+    max_age_hours: 48
+
+  - id: hagezi-normal
+    name: HaGeZi Multi NORMAL
+    homepage: https://github.com/hagezi/dns-blocklists
+    license: GPL-3.0
+    format: adblock
+    categories: [advertising, tracking, telemetry, malware, phishing]
+    urls:
+      primary: https://cdn.jsdelivr.net/gh/hagezi/dns-blocklists@latest/adblock/multi.txt
+      fallback: https://raw.githubusercontent.com/hagezi/dns-blocklists/main/adblock/multi.txt
+    update_interval_hours: 24
+    max_age_hours: 48

@@ -1,19 +1,40 @@
-# Filtering policies (ADR 0003). A group points at exactly one policy.
-#
-# PROVISIONAL: which lists each policy uses is reviewed and proven with tests in A3
-# (filtering logic). Nothing here is deployed.
+# Filtering policies (ADR 0003, ADR 0009). Each group points at exactly one policy.
+# Decided in A3 from the evaluation in docs/research/2026-09-14-a3-policy-evaluation.md.
+# To refine a group later, change its policy's lists or give the group its own policy; no code change.
 schema_version: 1
 
 policies:
   - id: standard
-    description: General protection for PCs, phones, tablets and unassigned devices.
+    description: >-
+      Strong ad, tracker, telemetry and threat protection for PCs, phones, tablets and unassigned
+      devices. Social-network, streaming and banking core domains are protected.
     blocklists:
       - hagezi-multi-pro
       - hagezi-tif-mini
 
-  - id: conservative
+  - id: gaming
     description: >-
-      Security-only baseline for Smart TVs, Xbox and gaming PCs, to avoid breaking streaming,
-      DRM, multiplayer and stores. A3 decides whether light ad/tracker blocking is safe here.
+      All-round protection for gaming PCs. Normal avoids Pro-only blocks of crash-reporting and
+      telemetry endpoints used by some launchers and games; launchers and anti-cheat are
+      unaffected by every evaluated list.
     blocklists:
+      - hagezi-normal
+      - hagezi-tif-mini
+
+  - id: smart-tv
+    description: >-
+      Conservative but real protection for Smart TVs: Light blocks TV-vendor ad domains, trackers
+      and telemetry; TIF Mini blocks malware and phishing. Avoids Normal/Pro-only blocks of
+      Prime Video ad-roll hosts and Netflix logging that can disturb playback.
+    blocklists:
+      - hagezi-light
+      - hagezi-tif-mini
+
+  - id: console
+    description: >-
+      Conservative but real protection for Xbox: Xbox network, Store, Game Pass, multiplayer and
+      party endpoints are unaffected by Light and TIF Mini; avoids Normal/Pro-only blocks of
+      PlayFab title endpoints and streaming ad-roll hosts.
+    blocklists:
+      - hagezi-light
       - hagezi-tif-mini

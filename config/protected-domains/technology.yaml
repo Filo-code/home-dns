@@ -1,14 +1,250 @@
-# Protected domains: technology (ADR 0003). Domains here must never be blocked.
-# A deny rule or regex that would block one of them is a configuration error, and the
-# A2 pipeline aborts any blocklist deployment that contains one.
-#
-# Entries are added in A3 from verified sources, one per item:
-#   - domain: example.com
-#     include_subdomains: true
-#     reason: why it must never be blocked
-#     source: where this was verified
+# Protected domains: technology (ADR 0003, A3 design docs/specs/a3-filtering-policy.md).
+# Domains here are never blocked. A deny rule or regex touching one is a configuration error,
+# and the A2 pipeline aborts any blocklist deployment that contains one.
+# include_subdomains: true only for single-tenant namespaces with no listed names inside
+# (checked against 8 real HaGeZi lists on 2026-09-14); otherwise exact.
 schema_version: 1
 category: technology
-description: Major technology and streaming platforms (Google, Microsoft, Apple, Amazon, Steam, Xbox, Netflix, Prime Video, Disney+, YouTube, Twitch).
+description: "Google, Microsoft, Apple and Amazon core, account, store and update endpoints."
 
-domains: []
+domains:
+  - domain: google.com
+    include_subdomains: false
+    reason: "Google core, account or API endpoint"
+    source: "Google core domain; DNS verified 2026-09-14"
+  - domain: www.google.com
+    include_subdomains: false
+    reason: "Google core, account or API endpoint"
+    source: "Google core domain; DNS verified 2026-09-14"
+  - domain: accounts.google.com
+    include_subdomains: false
+    reason: "Google core, account or API endpoint"
+    source: "Google core domain; DNS verified 2026-09-14"
+  - domain: www.googleapis.com
+    include_subdomains: false
+    reason: "Google core, account or API endpoint"
+    source: "Google core domain; DNS verified 2026-09-14"
+  - domain: gstatic.com
+    include_subdomains: false
+    reason: "Google core, account or API endpoint"
+    source: "Google core domain; DNS verified 2026-09-14"
+  - domain: www.gstatic.com
+    include_subdomains: false
+    reason: "Google core, account or API endpoint"
+    source: "Google core domain; DNS verified 2026-09-14"
+  - domain: fonts.gstatic.com
+    include_subdomains: false
+    reason: "Google core, account or API endpoint"
+    source: "Google core domain; DNS verified 2026-09-14"
+  - domain: fonts.googleapis.com
+    include_subdomains: false
+    reason: "Google core, account or API endpoint"
+    source: "Google core domain; DNS verified 2026-09-14"
+  - domain: mail.google.com
+    include_subdomains: false
+    reason: "Google core, account or API endpoint"
+    source: "Google core domain; DNS verified 2026-09-14"
+  - domain: gmail.com
+    include_subdomains: false
+    reason: "Google core, account or API endpoint"
+    source: "Google core domain; DNS verified 2026-09-14"
+  - domain: drive.google.com
+    include_subdomains: false
+    reason: "Google core, account or API endpoint"
+    source: "Google core domain; DNS verified 2026-09-14"
+  - domain: googleapis.com
+    include_subdomains: false
+    reason: "apex guard: googleapis.com also serves customer content (e.g. storage)"
+    source: "exact apex guard for a multi-tenant platform: catches a list blocking the whole platform, never protects tenants; DNS verified 2026-09-14"
+  - domain: play.google.com
+    include_subdomains: false
+    reason: "Google Play / Android service endpoint"
+    source: "Google core domain; DNS verified 2026-09-14"
+  - domain: play.googleapis.com
+    include_subdomains: false
+    reason: "Google Play / Android service endpoint"
+    source: "Google core domain; DNS verified 2026-09-14"
+  - domain: android.clients.google.com
+    include_subdomains: false
+    reason: "Google Play / Android service endpoint"
+    source: "Google core domain; DNS verified 2026-09-14"
+  - domain: android.googleapis.com
+    include_subdomains: false
+    reason: "Google Play / Android service endpoint"
+    source: "Google core domain; DNS verified 2026-09-14"
+  - domain: clients3.google.com
+    include_subdomains: false
+    reason: "Google Play / Android service endpoint"
+    source: "Google core domain; DNS verified 2026-09-14"
+  - domain: connectivitycheck.gstatic.com
+    include_subdomains: false
+    reason: "Android connectivity and captive-portal check"
+    source: "Google core domain; DNS verified 2026-09-14"
+  - domain: microsoft.com
+    include_subdomains: false
+    reason: "Microsoft core or account sign-in endpoint"
+    source: "Microsoft core domain; DNS verified 2026-09-14"
+  - domain: www.microsoft.com
+    include_subdomains: false
+    reason: "Microsoft core or account sign-in endpoint"
+    source: "Microsoft core domain; DNS verified 2026-09-14"
+  - domain: login.microsoftonline.com
+    include_subdomains: false
+    reason: "Microsoft core or account sign-in endpoint"
+    source: "Microsoft core domain; DNS verified 2026-09-14"
+  - domain: login.live.com
+    include_subdomains: false
+    reason: "Microsoft core or account sign-in endpoint"
+    source: "Microsoft core domain; DNS verified 2026-09-14"
+  - domain: account.microsoft.com
+    include_subdomains: false
+    reason: "Microsoft core or account sign-in endpoint"
+    source: "Microsoft core domain; DNS verified 2026-09-14"
+  - domain: live.com
+    include_subdomains: false
+    reason: "Microsoft core or account sign-in endpoint"
+    source: "Microsoft core domain; DNS verified 2026-09-14"
+  - domain: outlook.live.com
+    include_subdomains: false
+    reason: "Microsoft core or account sign-in endpoint"
+    source: "Microsoft core domain; DNS verified 2026-09-14"
+  - domain: office.com
+    include_subdomains: false
+    reason: "Microsoft core or account sign-in endpoint"
+    source: "Microsoft core domain; DNS verified 2026-09-14"
+  - domain: www.msftconnecttest.com
+    include_subdomains: false
+    reason: "Windows network connectivity status indicator"
+    source: "Microsoft core domain; DNS verified 2026-09-14"
+  - domain: dns.msftncsi.com
+    include_subdomains: false
+    reason: "Windows network connectivity status indicator (DNS probe)"
+    source: "Microsoft core domain; DNS verified 2026-09-14"
+  - domain: apple.com
+    include_subdomains: false
+    reason: "Apple official domain"
+    source: "Apple core domain; DNS verified 2026-09-14"
+  - domain: www.apple.com
+    include_subdomains: false
+    reason: "Apple official site"
+    source: "Apple core domain; DNS verified 2026-09-14"
+  - domain: icloud.com
+    include_subdomains: false
+    reason: "iCloud web services"
+    source: "Apple core domain; DNS verified 2026-09-14"
+  - domain: www.icloud.com
+    include_subdomains: false
+    reason: "iCloud web"
+    source: "Apple core domain; DNS verified 2026-09-14"
+  - domain: appleid.apple.com
+    include_subdomains: false
+    reason: "Apple Account sign-in"
+    source: "Apple core domain; DNS verified 2026-09-14"
+  - domain: account.apple.com
+    include_subdomains: false
+    reason: "Apple documented endpoint (Apple Account)"
+    source: "Apple Support 101555, Use Apple products on enterprise networks (https://support.apple.com/en-us/101555)"
+  - domain: idmsa.apple.com
+    include_subdomains: false
+    reason: "Apple documented endpoint (Apple Account)"
+    source: "Apple Support 101555, Use Apple products on enterprise networks (https://support.apple.com/en-us/101555)"
+  - domain: gsa.apple.com
+    include_subdomains: false
+    reason: "Apple documented endpoint (Apple Account)"
+    source: "Apple Support 101555, Use Apple products on enterprise networks (https://support.apple.com/en-us/101555)"
+  - domain: appleid.cdn-apple.com
+    include_subdomains: false
+    reason: "Apple documented endpoint (Apple Account)"
+    source: "Apple Support 101555, Use Apple products on enterprise networks (https://support.apple.com/en-us/101555)"
+  - domain: albert.apple.com
+    include_subdomains: false
+    reason: "Apple documented endpoint (device activation)"
+    source: "Apple Support 101555, Use Apple products on enterprise networks (https://support.apple.com/en-us/101555)"
+  - domain: gs.apple.com
+    include_subdomains: false
+    reason: "Apple documented endpoint (device setup)"
+    source: "Apple Support 101555, Use Apple products on enterprise networks (https://support.apple.com/en-us/101555)"
+  - domain: captive.apple.com
+    include_subdomains: false
+    reason: "Apple documented endpoint (captive-portal detection)"
+    source: "Apple Support 101555, Use Apple products on enterprise networks (https://support.apple.com/en-us/101555)"
+  - domain: mesu.apple.com
+    include_subdomains: false
+    reason: "Apple documented endpoint (software updates)"
+    source: "Apple Support 101555, Use Apple products on enterprise networks (https://support.apple.com/en-us/101555)"
+  - domain: swscan.apple.com
+    include_subdomains: false
+    reason: "Apple documented endpoint (software updates)"
+    source: "Apple Support 101555, Use Apple products on enterprise networks (https://support.apple.com/en-us/101555)"
+  - domain: swcdn.apple.com
+    include_subdomains: false
+    reason: "Apple documented endpoint (software updates)"
+    source: "Apple Support 101555, Use Apple products on enterprise networks (https://support.apple.com/en-us/101555)"
+  - domain: updates.cdn-apple.com
+    include_subdomains: false
+    reason: "Apple documented endpoint (software updates)"
+    source: "Apple Support 101555, Use Apple products on enterprise networks (https://support.apple.com/en-us/101555)"
+  - domain: gdmf.apple.com
+    include_subdomains: false
+    reason: "Apple documented endpoint (software updates)"
+    source: "Apple Support 101555, Use Apple products on enterprise networks (https://support.apple.com/en-us/101555)"
+  - domain: apps.apple.com
+    include_subdomains: false
+    reason: "Apple documented endpoint (App Store)"
+    source: "Apple Support 101555, Use Apple products on enterprise networks (https://support.apple.com/en-us/101555)"
+  - domain: itunes.apple.com
+    include_subdomains: false
+    reason: "Apple documented endpoint (App Store)"
+    source: "Apple Support 101555, Use Apple products on enterprise networks (https://support.apple.com/en-us/101555)"
+  - domain: mzstatic.com
+    include_subdomains: false
+    reason: "Apple documented endpoint (App Store assets)"
+    source: "Apple Support 101555, Use Apple products on enterprise networks (https://support.apple.com/en-us/101555)"
+  - domain: is1-ssl.mzstatic.com
+    include_subdomains: false
+    reason: "Apple documented endpoint (App Store assets)"
+    source: "Apple Support 101555, Use Apple products on enterprise networks (https://support.apple.com/en-us/101555)"
+  - domain: ocsp.apple.com
+    include_subdomains: false
+    reason: "Apple documented endpoint (certificate validation)"
+    source: "Apple Support 101555, Use Apple products on enterprise networks (https://support.apple.com/en-us/101555)"
+  - domain: crl.apple.com
+    include_subdomains: false
+    reason: "Apple documented endpoint (certificate validation)"
+    source: "Apple Support 101555, Use Apple products on enterprise networks (https://support.apple.com/en-us/101555)"
+  - domain: valid.apple.com
+    include_subdomains: false
+    reason: "Apple documented endpoint (certificate validation)"
+    source: "Apple Support 101555, Use Apple products on enterprise networks (https://support.apple.com/en-us/101555)"
+  - domain: push.apple.com
+    include_subdomains: true
+    reason: "Apple Push Notification service (documented as *.push.apple.com)"
+    source: "Apple Support 101555, Use Apple products on enterprise networks (https://support.apple.com/en-us/101555)"
+  - domain: amazon.it
+    include_subdomains: false
+    reason: "Amazon Italy official domain"
+    source: "official site verified 2026-09-14: https://www.amazon.it/ served 'Amazon.it'"
+  - domain: www.amazon.it
+    include_subdomains: false
+    reason: "Amazon Italy official site"
+    source: "official site verified 2026-09-14: https://www.amazon.it/ served 'Amazon.it'"
+  - domain: amazon.com
+    include_subdomains: false
+    reason: "Amazon official domain"
+    source: "Amazon core domain; DNS verified 2026-09-14"
+  - domain: www.amazon.com
+    include_subdomains: false
+    reason: "Amazon official site"
+    source: "Amazon core domain; DNS verified 2026-09-14"
+  - domain: media-amazon.com
+    include_subdomains: false
+    reason: "Amazon media CDN apex (metrics.media-amazon.com stays blockable)"
+    source: "referenced by the official site https://www.primevideo.com/ (verified 2026-09-14)"
+  - domain: m.media-amazon.com
+    include_subdomains: false
+    reason: "Amazon and Prime Video images"
+    source: "host under the verified official domain media-amazon.com; DNS verified 2026-09-14"
+  - domain: ssl-images-amazon.com
+    include_subdomains: true
+    reason: "Amazon static images (no listed names inside)"
+    source: "referenced by the official site https://www.primevideo.com/ (verified 2026-09-14)"
