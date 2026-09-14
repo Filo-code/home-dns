@@ -146,10 +146,175 @@ def test_serve_development_starts_uvicorn_on_configured_address(
     make_config_dir: MakeConfigDir, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     calls: list[dict[str, Any]] = []
-    monkeypatch.setattr(cli.uvicorn, "run", lambda app, **kw: calls.append(kw))
-    code, _, _ = _run("serve", "--config-dir", str(make_config_dir(DEV_PROFILE)))
+    apps: list[Any] = []
+    monkeypatch.setattr(cli.uvicorn, "run", lambda app, **kw: (apps.append(app), calls.append(kw)))
+    config_dir = make_config_dir(DEV_PROFILE)
+    _set_password(monkeypatch, config_dir, "admin", "admin", "long enough password")
+    code, _, _ = _run("serve", "--config-dir", str(config_dir))
     assert code == 0
     assert calls == [{"host": "127.0.0.1", "port": 8080}]
+    paths = set(apps[0].openapi()["paths"])
+    assert {"/api/v1/health", "/api/v1/auth/login", "/api/v1/overview"} <= paths
+
+
+def _set_password(
+    monkeypatch: pytest.MonkeyPatch, config_dir: Path, username: str, role: str, password: str
+) -> tuple[int, str, str]:
+    monkeypatch.setattr(cli, "hash_password", _fast_hash)
+    monkeypatch.setattr("sys.stdin", io.StringIO(password + "\n"))
+    return _run(
+        "auth", "set-password", "--config-dir", str(config_dir),
+        "--username", username, "--role", role, "--password-stdin",
+    )  # fmt: skip
+
+
+def _fast_hash(password: str) -> str:
+    from home_dns.core.auth import ScryptParams, hash_password
+
+    return hash_password(password, params=ScryptParams(n=2**10))
+
+
+def test_serve_refuses_without_an_admin_user(
+    make_config_dir: MakeConfigDir, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(cli.uvicorn, "run", lambda app, **kw: pytest.fail("must not start"))
+    config_dir = make_config_dir(DEV_PROFILE)
+    _set_password(monkeypatch, config_dir, "family", "viewer", "long enough password")
+    code, _, err = _run("serve", "--config-dir", str(config_dir))
+    assert code == 1
+    assert "no dashboard admin user" in err
+
+
+def test_serve_refuses_filtering_errors(
+    make_config_dir: MakeConfigDir, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(cli, "load_filtering_config", lambda *a, **k: _FilteringWithErrors())
+    code, _, err = _run("serve", "--config-dir", str(make_config_dir(DEV_PROFILE)))
+    assert code == 1
+    assert "filtering configuration has errors" in err
+
+
+class _FilteringWithErrors:
+    errors = ("broken",)
+
+
+def test_serve_storage_config_error_exits_2(make_config_dir: MakeConfigDir) -> None:
+    code, _, err = _run("serve", "--config-dir", str(make_config_dir(DEV_PROFILE, storage=False)))
+    assert code == 2
+    assert "configuration error" in err
+
+
+# ------------------------------------------------------------------------- A7: auth users
+
+
+def test_auth_set_password_and_list_users(
+    make_config_dir: MakeConfigDir, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    config_dir = make_config_dir(DEV_PROFILE)
+    code, out, _ = _set_password(monkeypatch, config_dir, "anna", "admin", "long enough password")
+    assert code == 0 and "sessions revoked" in out
+    assert "long enough password" not in out
+    _set_password(monkeypatch, config_dir, "family", "viewer", "another long password")
+    code, out, _ = _run("auth", "list-users", "--config-dir", str(config_dir))
+    assert code == 0
+    assert out.splitlines() == ["anna\tadmin", "family\tviewer"]
+
+
+def test_auth_rejects_weak_password_and_bad_username(
+    make_config_dir: MakeConfigDir, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    config_dir = make_config_dir(DEV_PROFILE)
+    code, _, err = _set_password(monkeypatch, config_dir, "anna", "admin", "short")
+    assert code == 1 and "at least 12" in err
+    code, _, err = _set_password(
+        monkeypatch, config_dir, "Anna Rossi", "admin", "long enough password"
+    )
+    assert code == 2 and "invalid username" in err
+    assert _run("auth", "list-users", "--config-dir", str(config_dir))[1] == ""
+
+
+def test_auth_interactive_prompt_requires_matching_passwords(
+    make_config_dir: MakeConfigDir, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    config_dir = make_config_dir(DEV_PROFILE)
+    monkeypatch.setattr(cli, "hash_password", _fast_hash)
+    answers = iter(["long enough password", "different password!"])
+    monkeypatch.setattr(cli.getpass, "getpass", lambda prompt: next(answers))
+    argv = (
+        "auth",
+        "set-password",
+        "--config-dir",
+        str(config_dir),
+        "--username",
+        "anna",
+        "--role",
+        "admin",
+    )
+    code, _, err = _run(*argv)
+    assert code == 1 and "do not match" in err
+    answers = iter(["long enough password", "long enough password"])
+    assert _run(*argv)[0] == 0
+
+
+def test_auth_refuses_production_and_placeholders(
+    repo_config_dir: Path, make_config_dir: MakeConfigDir
+) -> None:
+    code, _, err = _run(
+        "auth", "list-users", "--env", "production",
+        "--profile", str(repo_config_dir / "app" / "production.example.yaml"),
+    )  # fmt: skip
+    assert code == 1 and "development-only" in err
+    text = DEV_PROFILE.replace("data_dir: .local/data", 'data_dir: "<<AUDIT:paths.data_dir>>"')
+    code, _, err = _run("auth", "list-users", "--config-dir", str(make_config_dir(text)))
+    assert code == 1 and "placeholders" in err
+    assert _run("auth", "list-users", "--config-dir", "/nonexistent-config-dir")[0] == 2
+
+
+def test_serve_dashboard_status_reads_maintenance_state(
+    make_config_dir: MakeConfigDir, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from home_dns.core.monitoring import Incident, IncidentState
+    from home_dns.storage.artifacts import ArtifactStore
+    from home_dns.storage.monitoring import MonitoringStore
+
+    apps: list[Any] = []
+    monkeypatch.setattr(cli.uvicorn, "run", lambda app, **kw: apps.append(app))
+    config_dir = make_config_dir(DEV_PROFILE)
+    data_dir = config_dir.parent / ".local" / "data"
+    _set_password(monkeypatch, config_dir, "admin", "admin", "long enough password")
+    source_id = cli.load_filtering_config(config_dir, now=FIXED_NOW).config.sources[0].id
+    store = ArtifactStore(data_dir / "blocklists")
+    store.activate(
+        source_id, "ads.example\n", {"activated_at": "2026-09-13T04:00:00+00:00"}, dry_run=False
+    )
+    MonitoringStore(data_dir / "monitoring").save_incident(
+        Incident("dns_down", IncidentState.INCIDENT), dry_run=False
+    )
+    (data_dir / "monitoring" / "incidents" / "Bad Name.json").write_text("{}")
+    assert _run("serve", "--config-dir", str(config_dir))[0] == 0
+    status = apps[0].state.dashboard.status()
+    assert status.last_blocklist_update_at == datetime(2026, 9, 13, 4, tzinfo=UTC)
+    assert [i.check_name for i in status.incidents] == ["dns_down"]
+    assert status.last_backup_at is None
+    assert apps[0].state.dashboard.collector is not None
+
+
+def test_serve_dashboard_status_tolerates_corrupt_state(
+    make_config_dir: MakeConfigDir, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    apps: list[Any] = []
+    monkeypatch.setattr(cli.uvicorn, "run", lambda app, **kw: apps.append(app))
+    config_dir = make_config_dir(DEV_PROFILE)
+    data_dir = config_dir.parent / ".local" / "data"
+    _set_password(monkeypatch, config_dir, "admin", "admin", "long enough password")
+    source_id = cli.load_filtering_config(config_dir, now=FIXED_NOW).config.sources[0].id
+    (data_dir / "blocklists" / source_id).mkdir(parents=True)
+    (data_dir / "blocklists" / source_id / "state.json").write_text("not json")
+    (data_dir / "monitoring" / "incidents").mkdir(parents=True)
+    (data_dir / "monitoring" / "incidents" / "dns.json").write_text("not json")
+    assert _run("serve", "--config-dir", str(config_dir))[0] == 0
+    status = apps[0].state.dashboard.status()
+    assert status.last_blocklist_update_at is None and status.incidents == ()
 
 
 # ------------------------------------------------------------------ A1: filtering config

@@ -6,19 +6,25 @@ Exit codes: 0 ready/ok, 1 not ready or refused, 2 configuration cannot be loaded
 from __future__ import annotations
 
 import argparse
+import getpass
 import json
+import re
 import sys
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import TextIO
+from zoneinfo import ZoneInfo
 
 import uvicorn
 
 from home_dns import __version__
 from home_dns.api.app import create_app
+from home_dns.api.context import CollectorRunner, DashboardContext, MaintenanceStatus
+from home_dns.api.views import build_config_view
 from home_dns.bootstrap import StartupRefusedError, build_runtime
+from home_dns.collector import Collector, RetentionWindows
 from home_dns.config.filtering import (
     FilteringLoadResult,
     filtering_config_files,
@@ -47,8 +53,10 @@ from home_dns.config.telegram import (
     load_telegram_config,
     telegram_config_files,
 )
+from home_dns.core.auth import Role, WeakPasswordError, hash_password
 from home_dns.core.blocklists import ArtifactFormatError, BlockEntry, parse_artifact
 from home_dns.core.domains import InvalidDomainError
+from home_dns.core.filtering import FilteringConfig
 from home_dns.core.monitoring import (
     CheckResult,
     CheckStatus,
@@ -73,7 +81,7 @@ from home_dns.pipeline.blocklists import (
     run_update,
 )
 from home_dns.pipeline.fetch import Fetcher, HttpxFetcher
-from home_dns.providers.base import ProviderError
+from home_dns.providers.base import DnsProvider, ProviderError
 from home_dns.providers.mock import MockDnsProvider
 from home_dns.storage.artifacts import ArtifactStore, ArtifactStoreError
 from home_dns.storage.backup import (
@@ -85,8 +93,9 @@ from home_dns.storage.backup import (
     verify_backup,
 )
 from home_dns.storage.cleanup import execute_cleanup
+from home_dns.storage.dashboard import DATABASE_FILENAME, DashboardStore
 from home_dns.storage.disk import DiskUsageProvider, SystemDiskUsage
-from home_dns.storage.monitoring import MonitoringStore
+from home_dns.storage.monitoring import MonitoringStore, MonitoringStoreError
 from home_dns.storage.notify import NotifyStore
 from home_dns.storage.report import build_storage_report
 
@@ -126,7 +135,7 @@ def _build_parser() -> argparse.ArgumentParser:
     validate.add_argument("--format", choices=["text", "json"], default="text")
     validate.add_argument("--strict", action="store_true", help="treat warnings as errors")
 
-    serve = commands.add_parser("serve", help="run the API (development only in A0)")
+    serve = commands.add_parser("serve", help="run the dashboard API (development only until C4)")
     _add_config_arguments(serve)
 
     blocklists = commands.add_parser("blocklists", help="blocklist pipeline (development only)")
@@ -189,9 +198,7 @@ def _build_parser() -> argparse.ArgumentParser:
         "status", help="run the storage check through the incident state machine"
     )
     _add_config_arguments(mstatus)
-    mstatus.add_argument(
-        "--apply", action="store_true", help="persist the observed incident state"
-    )
+    mstatus.add_argument("--apply", action="store_true", help="persist the observed incident state")
     mstatus.add_argument("--format", choices=["text", "json"], default="text")
 
     notify = commands.add_parser("notify", help="alerting (development only)")
@@ -203,6 +210,23 @@ def _build_parser() -> argparse.ArgumentParser:
     ntest.add_argument(
         "--apply", action="store_true", help="actually send (never automatic; never default)"
     )
+
+    auth = commands.add_parser("auth", help="dashboard users (development only)")
+    auth_actions = auth.add_subparsers(dest="auth_command", required=True)
+    set_password = auth_actions.add_parser(
+        "set-password", help="create a user, or change its password and role (revokes sessions)"
+    )
+    _add_config_arguments(set_password)
+    set_password.add_argument("--username", required=True)
+    set_password.add_argument("--role", choices=[r.value for r in Role], required=True)
+    set_password.add_argument(
+        "--password-stdin",
+        action="store_true",
+        help="read the password from standard input instead of prompting (never pass it as an "
+        "argument: arguments are visible to other local users)",
+    )
+    list_users = auth_actions.add_parser("list-users", help="list dashboard users and roles")
+    _add_config_arguments(list_users)
     return parser
 
 
@@ -416,13 +440,9 @@ def _print_json(outcome: _Outcome, out: TextIO) -> None:
         },
         "telegram": {
             "error": outcome.telegram_error,
-            "anti_spam": (
-                outcome.telegram.anti_spam.model_dump() if outcome.telegram else None
-            ),
+            "anti_spam": (outcome.telegram.anti_spam.model_dump() if outcome.telegram else None),
             "send_recovery": (outcome.telegram.send_recovery if outcome.telegram else None),
-            "events_routed": (
-                len(outcome.telegram.event_severity) if outcome.telegram else None
-            ),
+            "events_routed": (len(outcome.telegram.event_severity) if outcome.telegram else None),
         },
         "config_files": [
             {"path": str(s.path), "placeholders": list(s.placeholders), "error": s.error}
@@ -499,26 +519,168 @@ def _validate_config(
     return EXIT_OK if outcome.ready else EXIT_NOT_READY
 
 
-def _serve(args: argparse.Namespace, err: TextIO) -> int:
+def _serve(args: argparse.Namespace, err: TextIO, now: Callable[[], datetime]) -> int:
     try:
-        config, _ = _load(args)
+        config, config_dir = _load(args)
     except ConfigLoadError as exc:
         print(f"configuration error: {exc}", file=err)
         return EXIT_LOAD_ERROR
     if config.environment is Environment.PRODUCTION:
-        print("serve is development-only until API authentication exists (phase A7)", file=err)
+        print("serve is development-only until the Raspberry Pi deployment (phase C4)", file=err)
         return EXIT_NOT_READY
     try:
         runtime = build_runtime(config)
     except (StartupRefusedError, ProviderError) as exc:
         print(f"startup refused: {exc}", file=err)
         return EXIT_NOT_READY
-    api = config.settings.api
-    uvicorn.run(
-        create_app(environment=config.environment, provider=runtime.provider),
-        host=str(api.bind_host),
-        port=int(str(api.port)),
+    try:
+        filtering = load_filtering_config(config_dir, now=now())
+        storage_config = load_storage_config(config_dir)
+    except ConfigLoadError as exc:
+        print(f"configuration error: {exc}", file=err)
+        return EXIT_LOAD_ERROR
+    if filtering.errors:
+        print("startup refused: the filtering configuration has errors", file=err)
+        return EXIT_NOT_READY
+    paths = _resolved_paths(config)
+    if paths is None:  # pragma: no cover - build_runtime already refuses placeholders
+        print("one or more paths.* settings are unresolved placeholders", file=err)
+        return EXIT_NOT_READY
+    store = DashboardStore.open(paths["data_dir"])
+    try:
+        if not any(role is Role.ADMIN for _, role in store.list_users()):
+            print(
+                "startup refused: no dashboard admin user; run "
+                "`home-dns auth set-password --username <name> --role admin`",
+                file=err,
+            )
+            return EXIT_NOT_READY
+        context = _dashboard_context(
+            config, runtime.provider, store, filtering.config, storage_config, paths, now
+        )
+        api = config.settings.api
+        uvicorn.run(
+            create_app(
+                environment=config.environment, provider=runtime.provider, dashboard=context
+            ),
+            host=str(api.bind_host),
+            port=int(str(api.port)),
+        )
+    finally:
+        store.close()
+    return EXIT_OK
+
+
+def _dashboard_context(
+    config: LoadedConfig,
+    provider: DnsProvider,
+    store: DashboardStore,
+    filtering: FilteringConfig,
+    storage_config: StorageConfig,
+    paths: dict[str, Path],
+    now: Callable[[], datetime],
+) -> DashboardContext:
+    settings = config.settings
+    metrics = settings.metrics
+    tz = ZoneInfo(metrics.timezone)
+    data_dir = paths["data_dir"]
+
+    def status() -> MaintenanceStatus:
+        backups = [info for info in list_backups(paths["backup_dir"]) if info.valid]
+        artifacts = ArtifactStore(data_dir / "blocklists")
+        activations = []
+        for source in filtering.sources:
+            try:
+                metadata = artifacts.current_metadata(source.id) or {}
+            except ArtifactStoreError:
+                continue  # surfaced by `blocklists status`; the dashboard shows what it can
+            if "activated_at" in metadata:
+                activations.append(datetime.fromisoformat(metadata["activated_at"]))
+        try:
+            incidents = tuple(MonitoringStore(data_dir / "monitoring").list_incidents())
+        except MonitoringStoreError:
+            incidents = ()
+        return MaintenanceStatus(
+            last_backup_at=backups[0].created_at if backups else None,
+            last_blocklist_update_at=max(activations, default=None),
+            incidents=incidents,
+        )
+
+    runner = None
+    if metrics.collector_enabled:
+        retention = RetentionWindows(
+            minute=timedelta(hours=metrics.minute_retention_hours),
+            hour=timedelta(days=storage_config.retention.query_history_days),
+            day=timedelta(days=metrics.day_retention_days),
+        )
+        runner = CollectorRunner(
+            Collector(provider, store, tz=tz, retention=retention, now=now),
+            metrics.poll_interval_seconds,
+            metrics.flush_interval_seconds,
+        )
+    return DashboardContext(
+        store=store,
+        filtering=filtering,
+        config_view=build_config_view(
+            settings, filtering, storage_config.thresholds, storage_config.retention
+        ),
+        status=status,
+        tz=tz,
+        cookie_secure=settings.api.cookie_secure is not False,
+        session_idle=timedelta(minutes=settings.api.session_idle_minutes),
+        session_absolute=timedelta(hours=settings.api.session_absolute_hours),
+        now=now,
+        collector=runner,
     )
+
+
+_USERNAME_RE = re.compile(r"[a-z][a-z0-9_.-]{0,63}")
+
+
+def _auth(args: argparse.Namespace, out: TextIO, err: TextIO, now: Callable[[], datetime]) -> int:
+    try:
+        config, _ = _load(args)
+    except ConfigLoadError as exc:
+        print(f"configuration error: {exc}", file=err)
+        return EXIT_LOAD_ERROR
+    if config.environment is Environment.PRODUCTION:
+        print(
+            "auth commands are development-only until the Raspberry Pi deployment (phase C4)",
+            file=err,
+        )
+        return EXIT_NOT_READY
+    paths = _resolved_paths(config)
+    if paths is None:
+        print("one or more paths.* settings are unresolved placeholders", file=err)
+        return EXIT_NOT_READY
+
+    if args.auth_command == "set-password":
+        if not _USERNAME_RE.fullmatch(args.username):
+            print("invalid username: lower-case letters, digits, '_', '.', '-'", file=err)
+            return EXIT_LOAD_ERROR
+        if args.password_stdin:
+            password = sys.stdin.readline().rstrip("\r\n")
+        else:
+            password = getpass.getpass("Password: ")
+            if getpass.getpass("Repeat password: ") != password:
+                print("passwords do not match", file=err)
+                return EXIT_NOT_READY
+        try:
+            encoded = hash_password(password)
+        except WeakPasswordError as exc:
+            print(str(exc), file=err)
+            return EXIT_NOT_READY
+
+    store = DashboardStore.open(paths["data_dir"])
+    try:
+        if args.auth_command == "list-users":
+            for username, role in store.list_users():
+                print(f"{username}\t{role.value}", file=out)
+            return EXIT_OK
+        store.set_user(args.username, Role(args.role), encoded, now=now())
+    finally:
+        store.close()
+    print(f"user {args.username} set with role {args.role}; existing sessions revoked", file=out)
     return EXIT_OK
 
 
@@ -703,7 +865,7 @@ def _policy_explain(
     return EXIT_OK
 
 
-_DATABASE_FILENAME = "home-dns.db"  # convention; A7 owns the schema, not the filename
+_DATABASE_FILENAME = DATABASE_FILENAME  # schema owned by storage/dashboard.py (A7)
 
 
 def _resolved_paths(config: LoadedConfig) -> dict[str, Path] | None:
@@ -1133,9 +1295,7 @@ def _notify(
             severity="info", event="notify_test", detail="Messaggio di prova da home-dns."
         )
         key = f"{alert.severity}:{alert.event}"
-        new_state, allowed = should_send(
-            state, key, policy=telegram_config.anti_spam, now=now()
-        )
+        new_state, allowed = should_send(state, key, policy=telegram_config.anti_spam, now=now())
         if not allowed:
             print("suppressed by anti-spam policy", file=out)
             return EXIT_OK
@@ -1178,7 +1338,9 @@ def main(
         return _monitoring(args, out, err, clock, disk)
     if args.command == "notify":
         return _notify(args, out, err, clock, notifier)
-    return _serve(args, err)
+    if args.command == "auth":
+        return _auth(args, out, err, clock)
+    return _serve(args, err, clock)
 
 
 if __name__ == "__main__":  # pragma: no cover

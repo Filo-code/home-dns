@@ -174,3 +174,36 @@ def test_scan_config_tree_reports_problems(make_config_dir: MakeConfigDir) -> No
     assert by_name["alerts.yaml"].error and "secret-like" in by_name["alerts.yaml"].error
     assert by_name["broken.yml"].error and "invalid YAML" in by_name["broken.yml"].error
     assert by_name["bad.yaml"].error and "malformed" in by_name["bad.yaml"].error
+
+
+# ----------------------------------------------------------------- A7: api and metrics settings
+
+from pydantic import ValidationError  # noqa: E402
+
+from home_dns.config.settings import ApiSettings, MetricsSettings  # noqa: E402
+
+
+@pytest.mark.parametrize(
+    "host", ["127.0.0.1", "192.168.1.2", "10.0.0.5", "fe80::1", "::1", "0.0.0.0"]
+)
+def test_lan_bind_hosts_are_accepted(host: str) -> None:
+    assert str(ApiSettings(bind_host=host, port=8080).bind_host) == host  # type: ignore[arg-type]
+
+
+@pytest.mark.parametrize("host", ["8.8.8.8", "2606:4700::1111"])
+def test_public_bind_hosts_are_rejected(host: str) -> None:
+    with pytest.raises(ValidationError, match="LAN-only"):
+        ApiSettings(bind_host=host, port=8080)  # type: ignore[arg-type]
+
+
+def test_metrics_defaults_match_owner_decisions() -> None:
+    m = MetricsSettings()
+    assert (m.poll_interval_seconds, m.flush_interval_seconds) == (60, 300)
+    assert (m.minute_retention_hours, m.day_retention_days, m.timezone) == (48, 365, "Europe/Rome")
+
+
+def test_metrics_rejects_unknown_timezone_and_inverted_intervals() -> None:
+    with pytest.raises(ValidationError, match="time zone"):
+        MetricsSettings(timezone="Mars/Olympus")
+    with pytest.raises(ValidationError, match="flush_interval"):
+        MetricsSettings(poll_interval_seconds=120, flush_interval_seconds=60)

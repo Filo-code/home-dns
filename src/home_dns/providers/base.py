@@ -16,6 +16,9 @@ from home_dns.core.models import (
     DnsSummary,
     DomainLookup,
     ProviderHealth,
+    QueryFilter,
+    QueryPage,
+    SystemMetrics,
 )
 
 
@@ -60,3 +63,17 @@ class DnsProvider(ABC):
     @abstractmethod
     def lookup_domain(self, domain: str) -> DomainLookup:
         """Whether a normalized domain is blocked by deployed blocklists, and by which sources."""
+
+    @abstractmethod
+    def query_log(
+        self, query: QueryFilter, *, limit: int = 100, cursor: str | None = None
+    ) -> QueryPage:
+        """Queries in ``[query.since, query.until)``, newest first, at most ``limit`` per page.
+
+        ``cursor`` is opaque: only a ``next_cursor`` from a previous page with the same filter.
+        Raises ValueError for an unknown cursor or a limit outside 1..1000.
+        """
+
+    @abstractmethod
+    def system_metrics(self) -> SystemMetrics:
+        """Host metrics of the machine running the DNS server."""

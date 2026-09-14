@@ -30,6 +30,36 @@ Health check while `make serve-mock` runs:
 curl -s http://127.0.0.1:8080/api/v1/health
 ```
 
+### Dashboard API (A7)
+
+`serve` refuses to start until at least one **admin** user exists. Users live in
+`data_dir/home-dns.db` (development: `.local/data/`). The password is prompted twice and never
+accepted as a command-line argument (minimum 12 characters):
+
+```bash
+uv run home-dns auth set-password --username admin --role admin
+uv run home-dns auth set-password --username famiglia --role viewer
+uv run home-dns auth list-users
+```
+
+If `uv run home-dns` fails with `ModuleNotFoundError`, see [Troubleshooting](#troubleshooting)
+(TD-002).
+
+Running `set-password` again for an existing user changes the password/role and logs that user out
+everywhere. Log in and call the API with a cookie jar:
+
+```bash
+curl -s -c /tmp/hd.cookies -H 'Content-Type: application/json' \
+  -d '{"username":"admin","password":"<your password>"}' http://127.0.0.1:8080/api/v1/auth/login
+curl -s -b /tmp/hd.cookies http://127.0.0.1:8080/api/v1/overview
+```
+
+Changes (`PATCH`, `POST /auth/logout`) also need the `csrf_token` from the login response in an
+`X-CSRF-Token` header. The collector starts with the server and records history from that moment
+(no backfill); charts fill in after the first 5-minute flush. Endpoints, roles and data exposure:
+[specs/a7-backend.md](specs/a7-backend.md) §8. The interactive schema is at `/api/docs`
+(development only).
+
 ## Code layout and boundaries
 
 | Package | Responsibility | Must not import |
@@ -39,6 +69,7 @@ curl -s http://127.0.0.1:8080/api/v1/health
 | `home_dns.providers` | `DnsProvider` interface + implementations | config, storage, api |
 | `home_dns.storage` | the only place that uses SQLite | config, providers, api |
 | `home_dns.api` | FastAPI HTTP layer | concrete providers, bootstrap, cli, sqlite3 |
+| `home_dns.collector` | metrics collector and device registry (A7) | config, api, bootstrap, cli, concrete providers, sqlite3 |
 | `home_dns.bootstrap` | composition root (config → readiness → provider) | api, cli |
 | `home_dns.cli` | `home-dns` command | — |
 

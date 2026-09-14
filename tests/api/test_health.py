@@ -2,29 +2,17 @@ from fastapi.testclient import TestClient
 
 from home_dns.api.app import create_app
 from home_dns.config.settings import Environment
-from home_dns.core.models import DnsClient, DnsSummary, HealthStatus, ProviderHealth
+from home_dns.core.models import HealthStatus, ProviderHealth
 from home_dns.providers.base import DnsProvider, ProviderUnavailableError
 from home_dns.providers.mock import MockDnsProvider
 
 
-class _FailingProvider(DnsProvider):
+class _FailingProvider(MockDnsProvider):
     @property
     def name(self) -> str:
         return "failing"
 
     def health(self) -> ProviderHealth:
-        raise ProviderUnavailableError("unreachable")
-
-    def get_summary(self) -> DnsSummary:  # pragma: no cover - not used by health
-        raise ProviderUnavailableError("unreachable")
-
-    def list_clients(self) -> list[DnsClient]:  # pragma: no cover - not used by health
-        raise ProviderUnavailableError("unreachable")
-
-    def deploy_blocklist(self, source_id, entries, *, dry_run=True):  # type: ignore[no-untyped-def]  # pragma: no cover
-        raise ProviderUnavailableError("unreachable")
-
-    def lookup_domain(self, domain):  # type: ignore[no-untyped-def]  # pragma: no cover
         raise ProviderUnavailableError("unreachable")
 
 

@@ -10,6 +10,7 @@ from enum import StrEnum
 from ipaddress import IPv4Address, IPv6Address
 from pathlib import Path
 from typing import Annotated
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from annotated_types import Ge, Le
 from pydantic import AnyHttpUrl, BaseModel, ConfigDict, Field, SecretStr, model_validator
@@ -74,6 +75,43 @@ class DnsProviderSettings(_Section):
 class ApiSettings(_Section):
     bind_host: Deferred[IPv4Address | IPv6Address]
     port: Deferred[PortNumber]
+    # False only for plain-HTTP development on loopback; TLS termination is decided in C4.
+    cookie_secure: Deferred[bool] = True
+    session_idle_minutes: int = Field(default=720, ge=5, le=10080)
+    session_absolute_hours: int = Field(default=168, ge=1, le=720)
+
+    @model_validator(mode="after")
+    def _lan_only(self) -> ApiSettings:
+        host = self.bind_host
+        if isinstance(host, IPv4Address | IPv6Address) and not (
+            host.is_private or host.is_loopback or host.is_link_local or host.is_unspecified
+        ):
+            raise ValueError(f"api.bind_host {host} is public; the dashboard is LAN-only")
+        return self
+
+
+class MetricsSettings(_Section):
+    """Collector cadence and rollup retention (docs/specs/a7-backend.md §6). Hourly retention
+    is storage.yaml's ``retention.query_history_days``, not repeated here."""
+
+    collector_enabled: bool = True
+    poll_interval_seconds: int = Field(default=60, ge=10, le=600)
+    flush_interval_seconds: int = Field(default=300, ge=60, le=3600)
+    timezone: str = "Europe/Rome"
+    minute_retention_hours: int = Field(default=48, ge=1, le=168)
+    day_retention_days: int = Field(default=365, ge=31, le=3650)
+
+    @model_validator(mode="after")
+    def _valid(self) -> MetricsSettings:
+        try:
+            ZoneInfo(self.timezone)
+        except (ZoneInfoNotFoundError, ValueError) as exc:
+            raise ValueError(
+                f"metrics.timezone {self.timezone!r} is not a known time zone"
+            ) from exc
+        if self.flush_interval_seconds < self.poll_interval_seconds:
+            raise ValueError("metrics.flush_interval_seconds must be >= poll_interval_seconds")
+        return self
 
 
 class NotifierSettings(_Section):
@@ -96,6 +134,7 @@ class AppSettings(BaseSettings):
     dns_provider: DnsProviderSettings
     api: ApiSettings
     notifier: NotifierSettings = Field(default_factory=NotifierSettings)
+    metrics: MetricsSettings = Field(default_factory=MetricsSettings)
 
     @classmethod
     def settings_customise_sources(

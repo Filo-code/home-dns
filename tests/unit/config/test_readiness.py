@@ -44,6 +44,7 @@ def test_committed_production_example_is_not_ready(repo_config_dir: Path) -> Non
         "dns_provider.pihole_v6.base_url": Status.MISSING_AUDIT,
         "api.bind_host": Status.MISSING_AUDIT,
         "api.port": Status.MISSING_REQUIRED,
+        "api.cookie_secure": Status.MISSING_REQUIRED,
         "secrets.pihole_app_password": Status.MISSING_REQUIRED,
     }
 

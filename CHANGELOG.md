@@ -29,6 +29,14 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Dates are ISO 
   - 90 % coverage gate
 - 2026-09-13 — Frontend skeleton (React + Vite + TypeScript, Italian UI) with a Vitest test; `Makefile` with setup/test/lint/check.
 
+### Added — A7 backend
+- 2026-09-14 — ADR 0005 (backend and dashboard architecture) and A7 design (`docs/specs/a7-backend.md`).
+- 2026-09-14 — `DnsProvider.query_log()` (half-open window, cursor pagination) and `system_metrics()`, with contract tests; `MockDnsProvider` generates a deterministic per-minute query log with daily-rotating IPv6 addresses.
+- 2026-09-14 — Metrics collector: 60 s polling, in-RAM aggregation, 5-minute batched SQLite flush with the read watermark in the same transaction; minute/hour/day rollups with mergeable latency histograms; retention 48 h / `query_history_days` / 365 d.
+- 2026-09-14 — Device registry (MAC first, then known addresses) with custom names and group assignment.
+- 2026-09-14 — Dashboard REST API: login/logout/session, overview, devices, device activity, metrics history, query log, alerts, configuration view. Roles `admin`/`viewer`, scrypt passwords, server-side sessions, CSRF tokens, login rate limiting, security headers, LAN-only bind validation.
+- 2026-09-14 — `home-dns auth set-password` / `auth list-users`; `serve` now requires an admin user and runs the collector.
+
 ### Added — A1 configuration architecture
 - 2026-09-13 — ADR 0003 (filtering configuration model) and technical-debt register (`docs/technical-debt.md`).
 - 2026-09-13 — `home_dns.core.domains`: domain normalization (IDNA, no wildcards/IPs/single labels) and subdomain matching.

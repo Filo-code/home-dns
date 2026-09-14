@@ -72,6 +72,16 @@ class MonitoringStore:
         except (json.JSONDecodeError, KeyError, ValueError) as exc:
             raise MonitoringStoreError(f"{path}: corrupted incident state") from exc
 
+    def list_incidents(self) -> list[Incident]:
+        """Every stored incident, by check name. Files with invalid names are ignored."""
+        if not self._incidents_dir.is_dir():
+            return []
+        return [
+            self.load_incident(path.stem)
+            for path in sorted(self._incidents_dir.glob("*.json"))
+            if _NAME_RE.fullmatch(path.stem)
+        ]
+
     def save_incident(self, incident: Incident, *, dry_run: bool = True) -> None:
         if dry_run:
             return

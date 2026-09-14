@@ -122,6 +122,21 @@ class ArtifactStore:
         metadata = json.loads(meta_path.read_text(encoding="utf-8")) if meta_path.is_file() else {}
         return StoredArtifact(sha, text, metadata)
 
+    def current_metadata(self, source_id: str) -> dict[str, Any] | None:
+        """Metadata of the current artifact without reading or hashing the list itself (cheap
+        enough for a dashboard request). Integrity is checked by ``read``/``current``."""
+        sha = self.state(source_id).current
+        if sha is None:
+            return None
+        _, meta_path = self._artifact_paths(source_id, sha)
+        if not meta_path.is_file():
+            return {}
+        try:
+            data = json.loads(meta_path.read_text(encoding="utf-8"))
+        except json.JSONDecodeError as exc:
+            raise ArtifactStoreError(f"{meta_path}: corrupted metadata") from exc
+        return data if isinstance(data, dict) else {}
+
     def current(self, source_id: str) -> StoredArtifact | None:
         sha = self.state(source_id).current
         return self.read(source_id, sha) if sha else None

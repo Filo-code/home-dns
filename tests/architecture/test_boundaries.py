@@ -75,6 +75,18 @@ FORBIDDEN: dict[str, set[str]] = {
         "uvicorn",
     },
     "bootstrap": {"home_dns.api", "home_dns.cli", "fastapi", "uvicorn"},
+    "collector": {
+        "home_dns.config",
+        "home_dns.api",
+        "home_dns.cli",
+        "home_dns.bootstrap",
+        "home_dns.providers.mock",
+        "fastapi",
+        "httpx",
+        "sqlite3",
+        "yaml",
+        "uvicorn",
+    },
     "pipeline": {
         "home_dns.config",
         "home_dns.api",

@@ -81,3 +81,94 @@ def test_sources_are_independent(provider: DnsProvider) -> None:
         "list-one",
         "list-two",
     )
+
+
+# ----------------------------------------------------------------- A7: query log and system
+
+from datetime import UTC, datetime, timedelta  # noqa: E402
+
+import pytest  # noqa: E402
+
+from home_dns.core.models import QueryFilter, QueryOutcome, SystemMetrics  # noqa: E402
+
+# The contract fixtures pin the clock to 2026-09-13T00:00Z; query the 30 minutes before it.
+WINDOW_END = datetime(2026, 9, 13, tzinfo=UTC)
+WINDOW = QueryFilter(since=WINDOW_END - timedelta(minutes=30), until=WINDOW_END)
+
+
+def _all_entries(provider: DnsProvider, query: QueryFilter, limit: int) -> list:  # type: ignore[type-arg]
+    entries, cursor = [], None
+    while True:
+        page = provider.query_log(query, limit=limit, cursor=cursor)
+        entries.extend(page.entries)
+        if page.next_cursor is None:
+            return entries
+        cursor = page.next_cursor
+
+
+def test_query_log_respects_half_open_window_and_order(provider: DnsProvider) -> None:
+    entries = _all_entries(provider, WINDOW, limit=1000)
+    assert entries, "a 30-minute window of 16 active devices cannot be empty"
+    assert all(WINDOW.since <= e.time < WINDOW.until for e in entries)
+    keys = [(e.time, e.id) for e in entries]
+    assert keys == sorted(keys, reverse=True)
+    assert len({e.id for e in entries}) == len(entries)
+
+
+def test_query_log_pagination_is_complete_and_stable(provider: DnsProvider) -> None:
+    whole = _all_entries(provider, WINDOW, limit=1000)
+    paged = _all_entries(provider, WINDOW, limit=7)
+    assert paged == whole
+
+
+def test_query_log_last_page_has_no_cursor(provider: DnsProvider) -> None:
+    empty = QueryFilter(since=WINDOW_END, until=WINDOW_END)
+    assert provider.query_log(empty).entries == ()
+    assert provider.query_log(empty).next_cursor is None
+
+
+def test_query_log_filters_narrow_results(provider: DnsProvider) -> None:
+    sample = _all_entries(provider, WINDOW, limit=1000)[0]
+    by_client = _all_entries(
+        provider, WINDOW.model_copy(update={"client_address": sample.client_address}), 1000
+    )
+    assert by_client and all(e.client_address == sample.client_address for e in by_client)
+    blocked = _all_entries(
+        provider, WINDOW.model_copy(update={"outcome": QueryOutcome.BLOCKED}), 1000
+    )
+    assert all(e.outcome is QueryOutcome.BLOCKED for e in blocked)
+    by_domain = _all_entries(provider, WINDOW.model_copy(update={"domain": sample.domain}), 1000)
+    assert by_domain and all(e.domain == sample.domain for e in by_domain)
+
+
+def test_query_log_blocked_entries_are_attributed(provider: DnsProvider) -> None:
+    for entry in _all_entries(provider, WINDOW, limit=1000):
+        if entry.outcome is not QueryOutcome.BLOCKED:
+            assert entry.blocked_by is None
+
+
+@pytest.mark.parametrize("limit", [0, 1001])
+def test_query_log_rejects_bad_limit(provider: DnsProvider, limit: int) -> None:
+    with pytest.raises(ValueError, match="limit"):
+        provider.query_log(WINDOW, limit=limit)
+
+
+def test_query_log_rejects_malformed_cursor(provider: DnsProvider) -> None:
+    with pytest.raises(ValueError, match="cursor"):
+        provider.query_log(WINDOW, cursor="not-a-cursor")
+
+
+def test_client_addresses_seen_in_log_are_known_clients(provider: DnsProvider) -> None:
+    known = {
+        address
+        for client in provider.list_clients()
+        for address in (*client.ipv4_addresses, *client.ipv6_addresses)
+    }
+    assert {e.client_address for e in _all_entries(provider, WINDOW, 1000)} <= known
+
+
+def test_system_metrics_are_plausible(provider: DnsProvider) -> None:
+    metrics = provider.system_metrics()
+    assert isinstance(metrics, SystemMetrics)
+    assert metrics.memory_total_bytes > 0
+    assert metrics.collected_at.tzinfo is not None

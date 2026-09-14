@@ -17,3 +17,4 @@ dns_provider:
 api:
   bind_host: 127.0.0.1
   port: 8080
+  cookie_secure: false        # plain HTTP on loopback

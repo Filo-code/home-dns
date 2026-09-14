@@ -46,3 +46,15 @@ def test_summary_aggregates_clients() -> None:
 def test_health_status_can_be_simulated() -> None:
     assert _provider().health().status is HealthStatus.OK
     assert _provider(health_status=HealthStatus.DOWN).health().status is HealthStatus.DOWN
+
+
+def test_query_log_for_unknown_client_is_empty() -> None:
+    from datetime import timedelta
+    from ipaddress import IPv4Address, IPv6Address
+
+    from home_dns.core.models import QueryFilter
+
+    provider = _provider()
+    window = {"since": FIXED_NOW - timedelta(minutes=10), "until": FIXED_NOW}
+    for address in (IPv4Address("192.0.2.200"), IPv6Address("2001:db8::ffff:ffff")):
+        assert provider.query_log(QueryFilter(**window, client_address=address)).entries == ()

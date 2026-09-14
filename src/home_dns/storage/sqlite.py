@@ -34,8 +34,11 @@ class MigrationReport:
     applied: tuple[Migration, ...]
 
 
-def open_database(path: Path) -> sqlite3.Connection:
-    connection = sqlite3.connect(path, isolation_level=None)  # explicit transactions below
+def open_database(path: Path, *, check_same_thread: bool = True) -> sqlite3.Connection:
+    """Pass ``check_same_thread=False`` only when the caller serialises access with a lock."""
+    connection = sqlite3.connect(
+        path, isolation_level=None, check_same_thread=check_same_thread
+    )  # explicit transactions below
     connection.execute("PRAGMA journal_mode=WAL")
     connection.execute("PRAGMA foreign_keys=ON")
     connection.execute("PRAGMA busy_timeout=5000")

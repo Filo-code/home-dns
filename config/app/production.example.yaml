@@ -23,3 +23,14 @@ dns_provider:
 api:
   bind_host: "<<AUDIT:api.bind_host>>"      # the Pi's LAN address, after the network audit
   port: "<<REQUIRED:api.port>>"
+  cookie_secure: "<<REQUIRED:api.cookie_secure>>"   # true once TLS is terminated (C4 decision)
+  session_idle_minutes: 720
+  session_absolute_hours: 168
+
+metrics:
+  collector_enabled: true
+  poll_interval_seconds: 60
+  flush_interval_seconds: 300
+  timezone: Europe/Rome
+  minute_retention_hours: 48
+  day_retention_days: 365

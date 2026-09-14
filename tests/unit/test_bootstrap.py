@@ -40,7 +40,7 @@ def test_production_example_is_refused(repo_config_dir: Path) -> None:
     with pytest.raises(StartupRefusedError) as excinfo:
         build_runtime(loaded)
     assert "api.port" in str(excinfo.value)
-    assert len(excinfo.value.report.errors) == 8
+    assert len(excinfo.value.report.errors) == 9
 
 
 def test_production_with_mock_provider_is_refused(make_config_dir: MakeConfigDir) -> None:

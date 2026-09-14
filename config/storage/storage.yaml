@@ -23,5 +23,5 @@ retention:
   logs_backup_count: 5        # -> 50 MiB bound per log stream (size x count, not day-based)
   temp_max_age_hours: 24      # files in paths.tmp_dir older than this are swept
   backups_keep: 7             # newest N backups kept; the single newest valid one is never pruned
-  query_history_days: 30      # "approximately 30 days" (CLAUDE.md §16); enforced once A7 has a
-                               # query-history table — this is the policy value it will read
+  query_history_days: 30      # "approximately 30 days" (CLAUDE.md §16). A7 keeps no raw query
+                               # copy; this bounds the hourly per-device rollups (a7-backend.md §6)

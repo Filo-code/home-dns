@@ -2,13 +2,13 @@
 
 Custom, responsive (desktop / iPad / mobile), **LAN-only** web dashboard (CLAUDE.md §35–§40). UI language: **Italian**.
 
-> **Status: A0 skeleton only.** One placeholder page and one test. The real pages come in A8. Nothing is deployed.
+> **Status:** backend API ready on mock data (A7, [ADR 0005](../docs/adr/0005-backend-dashboard.md)). The frontend is still the A0 skeleton; the real pages come in A8. Nothing is deployed.
 
 | Path | Purpose |
 |---|---|
 | `frontend/` | TypeScript + React + Vite app. Built on the development machine; only `frontend/dist/` static files are deployed. Node.js is **not** needed on the Pi |
 
-The backend lives in the Python package **`src/home_dns/api/`**, not here ([ADR 0002](../docs/adr/0002-software-stack.md)). Shared TypeScript types will be generated from the backend OpenAPI schema in A7.
+The backend lives in the Python package **`src/home_dns/api/`**, not here ([ADR 0002](../docs/adr/0002-software-stack.md)). Shared TypeScript types will be generated from the backend OpenAPI schema (`/api/openapi.json`, development only) in A8.
 
 ```bash
 make test-web     # Vitest
