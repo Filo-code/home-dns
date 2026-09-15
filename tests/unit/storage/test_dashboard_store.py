@@ -164,3 +164,29 @@ def test_device_lists_only_recent_addresses_and_old_ones_are_pruned(store: Dashb
         FlushBatch(watermark=T0, retention_cutoffs={Resolution.DAY: T0 - timedelta(days=365)})
     )
     assert set(store.address_bindings()) == {"2001:db8::2", "2001:db8::3"}
+
+
+def test_incident_events_round_trip_most_recent_first(store: DashboardStore) -> None:
+    store.record_incident_event("storage", "opened", occurred_at=T0, severity="warning")
+    store.record_incident_event(
+        "storage", "recovered", occurred_at=T0 + timedelta(hours=1), severity=None
+    )
+    store.record_incident_event(
+        "storage", "opened", occurred_at=T0 + timedelta(hours=2), severity="critical"
+    )
+    events = store.list_incident_events()
+    assert [(e.transition, e.severity) for e in events] == [
+        ("opened", "critical"),
+        ("recovered", None),
+        ("opened", "warning"),
+    ]
+    assert events[0].check_name == "storage" and events[0].occurred_at == T0 + timedelta(hours=2)
+
+    since = store.list_incident_events(since=T0 + timedelta(hours=1))
+    assert [e.transition for e in since] == ["opened", "recovered"]
+
+    limited = store.list_incident_events(limit=1)
+    assert len(limited) == 1 and limited[0].transition == "opened"
+
+    other_check = store.list_incident_events(check_name="dns_down")
+    assert other_check == []

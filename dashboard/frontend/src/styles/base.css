@@ -5,7 +5,17 @@
 }
 
 html {
+  color-scheme: dark;
+}
+
+:root[data-theme="light"] {
   color-scheme: light;
+}
+
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="dark"]) {
+    color-scheme: light;
+  }
 }
 
 body {
@@ -111,6 +121,7 @@ a {
 .nav__link {
   display: inline-flex;
   align-items: center;
+  gap: var(--space-2);
   min-height: var(--touch-target);
   padding: 0 var(--space-3);
   border-radius: var(--radius-sm);
@@ -458,4 +469,553 @@ select {
 
 .login-form .button {
   width: 100%;
+}
+
+/* -------------------------------------------------------------------- nav additions */
+
+.nav__brand {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.nav__brand-mark {
+  width: 22px;
+  height: 22px;
+  border-radius: var(--radius-sm);
+  flex: none;
+  background: linear-gradient(135deg, var(--color-accent-from), var(--color-accent-to));
+}
+
+.nav__health {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.nav__health-text {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.2;
+  font-size: var(--font-size-sm);
+}
+
+.nav__health-text b {
+  font-family: var(--font-mono);
+}
+
+.nav__health-text span {
+  color: var(--color-text-muted);
+  font-size: 0.75rem;
+}
+
+.nav__collapse-toggle {
+  display: none; /* shown only on desktop, see responsive.css */
+  width: 26px;
+  height: 26px;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  color: var(--color-text-muted);
+  cursor: pointer;
+}
+
+/* -------------------------------------------------------------------- health ring / ledger */
+
+.health-ring {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.health-ring__center {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+.health-ring__score {
+  font-family: var(--font-mono);
+  font-size: 1.75rem;
+  font-weight: 600;
+}
+
+.health-ring__label {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--color-ok);
+  font-weight: 600;
+}
+
+.card--vitals {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-6) var(--space-4);
+}
+
+.health-ledger {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.health-ledger__row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2) 0;
+  border-bottom: 1px solid var(--color-bg);
+}
+
+.health-ledger__row:last-child {
+  border-bottom: none;
+}
+
+.health-ledger__dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  flex: none;
+}
+
+.health-ledger__dot--ok {
+  background: var(--color-ok);
+}
+.health-ledger__dot--warning {
+  background: var(--color-warning);
+}
+.health-ledger__dot--critical {
+  background: var(--color-critical);
+}
+.health-ledger__dot--unknown {
+  background: var(--color-unknown);
+}
+
+.health-ledger__label {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  font-weight: 500;
+}
+
+.health-ledger__detail {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-muted);
+  font-weight: 400;
+}
+
+/* Mobile-first: both stack to one column by default; widened from tablet width up in
+ * responsive.css. Unconditionally forcing two columns here previously broke phone width. */
+.card-grid--health,
+.card-grid--system {
+  grid-template-columns: 1fr;
+}
+
+/* -------------------------------------------------------------------- quick actions */
+
+.quick-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-bottom: var(--space-4);
+}
+
+.quick-action {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: var(--touch-target);
+  padding: 0 var(--space-3);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font-size: var(--font-size-sm);
+  font-weight: 500;
+  cursor: pointer;
+  text-decoration: none;
+}
+
+.quick-action--primary {
+  background: linear-gradient(135deg, var(--color-accent-from), var(--color-accent-to));
+  border-color: transparent;
+  color: var(--color-primary-contrast);
+  font-weight: 600;
+}
+
+.quick-action--admin {
+  border-style: dashed;
+  border-color: var(--color-admin-accent);
+}
+
+.quick-action__tag {
+  font-family: var(--font-mono);
+  font-size: 0.65rem;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  padding: 1px 4px;
+}
+
+/* -------------------------------------------------------------------- top bar */
+
+.app-shell__main {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+}
+
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  min-height: var(--nav-height);
+  padding: 0 var(--space-4);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.topbar__crumb {
+  font-weight: 600;
+}
+
+.topbar__actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.topbar__updated {
+  display: none; /* shown from tablet width up, see responsive.css */
+  align-items: center;
+  gap: var(--space-1);
+  font-size: var(--font-size-sm);
+  color: var(--color-text-muted);
+  font-family: var(--font-mono);
+}
+
+.topbar__live-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--color-ok);
+}
+
+.topbar__palette-trigger {
+  display: none; /* shown from tablet width up, see responsive.css */
+  align-items: center;
+  gap: var(--space-2);
+  height: 32px;
+  padding: 0 var(--space-3);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+  cursor: pointer;
+}
+
+.topbar__palette-trigger kbd {
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  padding: 1px 4px;
+}
+
+.topbar__icon-button {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  color: var(--color-text-muted);
+  cursor: pointer;
+}
+
+.topbar__ping {
+  position: absolute;
+  top: -2px;
+  right: -2px;
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--color-critical);
+  border: 2px solid var(--color-surface);
+}
+
+/* -------------------------------------------------------------------- command palette / action sheet */
+
+.command-palette,
+.action-sheet {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  color: var(--color-text);
+  padding: 0;
+  width: min(560px, calc(100vw - var(--space-4) * 2));
+}
+
+.command-palette::backdrop,
+.action-sheet::backdrop {
+  background: rgba(0, 0, 0, 0.5);
+}
+
+.command-palette__input {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.command-palette__input input {
+  flex: 1;
+  border: none;
+  min-height: auto;
+  padding: 0;
+  background: none;
+}
+
+.command-palette__input kbd {
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  padding: 1px 5px;
+  color: var(--color-text-muted);
+}
+
+.command-palette__list {
+  list-style: none;
+  margin: 0;
+  padding: var(--space-2);
+  max-height: 60vh;
+  overflow-y: auto;
+}
+
+.command-palette__item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  width: 100%;
+  min-height: var(--touch-target);
+  padding: 0 var(--space-3);
+  border: none;
+  background: none;
+  border-radius: var(--radius-sm);
+  color: var(--color-text);
+  font-size: var(--font-size-base);
+  text-align: left;
+  cursor: pointer;
+}
+
+.command-palette__item:hover {
+  background: var(--color-bg);
+}
+
+.command-palette__tag {
+  margin-left: auto;
+  font-family: var(--font-mono);
+  font-size: 0.65rem;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  padding: 1px 4px;
+}
+
+.command-palette__empty {
+  padding: var(--space-3);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+}
+
+.action-sheet {
+  padding: var(--space-5) var(--space-4);
+}
+
+.action-sheet__handle {
+  width: 32px;
+  height: 4px;
+  border-radius: 999px;
+  background: var(--color-border);
+  margin: 0 auto var(--space-3);
+}
+
+.action-sheet__badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  font-family: var(--font-mono);
+  font-size: 0.65rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--color-admin-accent);
+  background: var(--color-warning-bg);
+  border-radius: 4px;
+  padding: 2px 6px;
+  margin-bottom: var(--space-2);
+}
+
+.action-sheet__title {
+  margin: 0 0 var(--space-2);
+  font-size: var(--font-size-lg);
+}
+
+.action-sheet__description {
+  color: var(--color-text-muted);
+  margin-bottom: var(--space-4);
+  line-height: 1.5;
+}
+
+.action-sheet__actions {
+  display: flex;
+  gap: var(--space-2);
+}
+
+.action-sheet__actions .button {
+  flex: 1;
+}
+
+/* -------------------------------------------------------------------- area chart / heartbeat */
+
+.area-chart__legend {
+  display: flex;
+  gap: var(--space-4);
+  margin-bottom: var(--space-2);
+  font-size: var(--font-size-sm);
+  color: var(--color-text-muted);
+}
+
+.area-chart__legend-item::before {
+  content: "";
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+  margin-right: var(--space-1);
+}
+
+.area-chart__legend-item--allowed::before {
+  background: var(--color-accent-from);
+}
+
+.area-chart__legend-item--blocked::before {
+  background: var(--color-accent-to);
+}
+
+.area-chart__line--allowed {
+  fill: none;
+  stroke: var(--color-accent-from);
+  stroke-width: 1.6;
+}
+
+.area-chart__line--blocked {
+  fill: none;
+  stroke: var(--color-accent-to);
+  stroke-width: 1.6;
+}
+
+.heartbeat-strip__bars {
+  display: flex;
+  align-items: flex-end;
+  gap: 3px;
+  height: 34px;
+  margin: var(--space-1) 0 var(--space-2);
+}
+
+.heartbeat-strip__bar {
+  flex: 1;
+  min-width: 4px;
+  height: 100%;
+  border-radius: 2px;
+  background: var(--color-ok);
+}
+
+.heartbeat-strip__bar--warning {
+  background: var(--color-warning);
+}
+.heartbeat-strip__bar--critical {
+  background: var(--color-critical);
+}
+.heartbeat-strip__bar--unknown {
+  background: var(--color-border);
+}
+
+.heartbeat-strip__caption {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.7rem;
+  color: var(--color-text-muted);
+  font-family: var(--font-mono);
+  margin-bottom: var(--space-3);
+}
+
+/* -------------------------------------------------------------------- incident history */
+
+.incident-history {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.incident-history__row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2) 0;
+  border-bottom: 1px solid var(--color-bg);
+}
+
+.incident-history__row:last-child {
+  border-bottom: none;
+}
+
+.incident-history__icon {
+  width: 20px;
+  height: 20px;
+  border-radius: 999px;
+  flex: none;
+}
+
+.incident-history__icon--ok {
+  background: var(--color-ok-bg);
+}
+.incident-history__icon--warning {
+  background: var(--color-warning-bg);
+}
+.incident-history__icon--critical {
+  background: var(--color-critical-bg);
+}
+.incident-history__icon--info {
+  background: var(--color-unknown-bg);
+}
+
+.incident-history__text {
+  flex: 1;
+  font-size: var(--font-size-sm);
+}
+
+.incident-history__time {
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+  font-family: var(--font-mono);
+  white-space: nowrap;
 }

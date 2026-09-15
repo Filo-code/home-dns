@@ -175,6 +175,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/incidents/history": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Incident History */
+        get: operations["incident_history_api_v1_incidents_history_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/config": {
         parameters: {
             query?: never;
@@ -182,7 +199,12 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Config */
+        /**
+         * Config
+         * @description A shallow, per-request enrichment of the cached ``config_view`` with live per-source
+         *     blocklist-freshness timestamps — the base view is built once at startup (see
+         *     ``build_config_view``), so a live timestamp cannot be baked into it without going stale.
+         */
         get: operations["config_api_v1_config_get"];
         put?: never;
         post?: never;
@@ -294,6 +316,17 @@ export interface components {
             last_seen: string;
             last_24h: components["schemas"]["Counters"];
         };
+        /** DiskUsage */
+        DiskUsage: {
+            /** Total Bytes */
+            total_bytes: number;
+            /** Used Bytes */
+            used_bytes: number;
+            /** Free Bytes */
+            free_bytes: number;
+            /** Used Percent */
+            readonly used_percent: number;
+        };
         /** DomainCount */
         DomainCount: {
             /** Domain */
@@ -362,6 +395,26 @@ export interface components {
             points: components["schemas"]["HistoryPoint"][];
         };
         /**
+         * IncidentEventView
+         * @description One persisted opened/recovered transition. Deliberately minimal — see
+         *     storage/dashboard.py's ``incident_events`` table doc. No "notified" flag: the CLI monitoring
+         *     command does not itself confirm a Telegram send, so that status is not actually known here and
+         *     is not fabricated.
+         */
+        IncidentEventView: {
+            /** Check Name */
+            check_name: string;
+            /** Transition */
+            transition: string;
+            /**
+             * Occurred At
+             * Format: date-time
+             */
+            occurred_at: string;
+            /** Severity */
+            severity: ("critical" | "warning" | "info") | null;
+        };
+        /**
          * IncidentState
          * @enum {string}
          */
@@ -409,6 +462,7 @@ export interface components {
             last_backup_at: string | null;
             /** Last Blocklist Update At */
             last_blocklist_update_at: string | null;
+            storage: components["schemas"]["DiskUsage"];
         };
         /** ProviderHealthView */
         ProviderHealthView: {
@@ -814,6 +868,38 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["IncidentView"][];
+                };
+            };
+        };
+    };
+    incident_history_api_v1_incidents_history_get: {
+        parameters: {
+            query?: {
+                limit?: number;
+                since?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IncidentEventView"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

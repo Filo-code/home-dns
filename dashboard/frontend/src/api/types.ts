@@ -13,6 +13,7 @@ export type DomainCount = components["schemas"]["DomainCount"];
 export type HealthResponse = components["schemas"]["HealthResponse"];
 export type HistoryPoint = components["schemas"]["HistoryPoint"];
 export type HistoryResponse = components["schemas"]["HistoryResponse"];
+export type IncidentEventView = components["schemas"]["IncidentEventView"];
 export type IncidentView = components["schemas"]["IncidentView"];
 export type LoginRequest = components["schemas"]["LoginRequest"];
 export type OverviewResponse = components["schemas"]["OverviewResponse"];
@@ -27,6 +28,7 @@ export type QueryOutcome = QueryLogEntry["outcome"];
 export type IncidentState = IncidentView["state"];
 export type HealthStatus = ProviderStatusView["status"];
 export type Role = SessionView["role"];
+export type IncidentSeverity = NonNullable<IncidentEventView["severity"]>;
 
 /**
  * `GET /api/v1/config` has no Pydantic `response_model` — `build_config_view()` in
@@ -46,6 +48,8 @@ export interface BlocklistSourceView {
   name: string;
   categories: string[];
   update_interval_hours: number;
+  /** Live per-source read, enriched by `config()` in views.py — not part of the cached config. */
+  last_activated_at: string | null;
 }
 
 export interface StorageThresholdsView {

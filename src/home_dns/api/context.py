@@ -12,7 +12,10 @@ from home_dns.collector import Collector
 from home_dns.core.auth import MIN_PASSWORD_LENGTH, LoginRateLimiter, ScryptParams, hash_password
 from home_dns.core.filtering import FilteringConfig
 from home_dns.core.monitoring import Incident
+from home_dns.core.storage import DiskUsage
 from home_dns.storage.dashboard import DashboardStore
+
+_EMPTY_DISK_USAGE = DiskUsage(total_bytes=0, used_bytes=0, free_bytes=0)
 
 
 @dataclass(frozen=True)
@@ -39,6 +42,8 @@ class DashboardContext:
     filtering: FilteringConfig
     config_view: dict[str, Any]
     status: Callable[[], MaintenanceStatus]
+    disk_usage: Callable[[], DiskUsage] = lambda: _EMPTY_DISK_USAGE
+    blocklist_freshness: Callable[[], dict[str, datetime | None]] = dict
     tz: ZoneInfo = field(default_factory=lambda: ZoneInfo("Europe/Rome"))
     cookie_secure: bool = True
     session_idle: timedelta = timedelta(hours=12)

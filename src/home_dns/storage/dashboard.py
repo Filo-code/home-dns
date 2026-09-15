@@ -9,6 +9,7 @@ Schema (docs/specs/a7-backend.md §4-§7). Timestamps are integer UTC epoch seco
     rollups((resolution, bucket_start, device_id) PK, total, blocked, cached, forwarded,
             latency_histogram JSON, blocked_by_source JSON)
     collector_state(id = 1, watermark)
+    incident_events(id PK, check_name, transition [opened|recovered], occurred_at, severity)
 
 One connection shared by the API thread pool and the collector thread, serialised by a lock.
 """
@@ -26,6 +27,7 @@ from pathlib import Path
 
 from home_dns.core.auth import Role
 from home_dns.core.metrics import Resolution, Rollup
+from home_dns.core.monitoring import Severity
 from home_dns.storage.sqlite import Migration, apply_migrations, open_database
 
 DATABASE_FILENAME = "home-dns.db"
@@ -84,6 +86,20 @@ MIGRATIONS: tuple[Migration, ...] = (
         );
         """,
     ),
+    Migration(
+        2,
+        "incident_events",
+        """
+        CREATE TABLE incident_events (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            check_name TEXT NOT NULL,
+            transition TEXT NOT NULL CHECK (transition IN ('opened', 'recovered')),
+            occurred_at INTEGER NOT NULL,
+            severity TEXT CHECK (severity IN ('critical', 'warning', 'info'))
+        );
+        CREATE INDEX incident_events_check_time ON incident_events(check_name, occurred_at);
+        """,
+    ),
 )
 
 
@@ -133,6 +149,17 @@ class DeviceUpsert:
     hostname: str | None
     first_seen: datetime
     last_seen: datetime
+
+
+@dataclass(frozen=True)
+class IncidentEventRecord:
+    """One persisted opened/recovered transition. See the ``incident_events`` migration doc for
+    why there is no "notified" field."""
+
+    check_name: str
+    transition: str
+    occurred_at: datetime
+    severity: Severity | None
 
 
 @dataclass(frozen=True)
@@ -372,6 +399,50 @@ class DashboardStore:
             params.append(device_id)
         rows = self._read(sql + " ORDER BY bucket_start, device_id", params)
         return [(_dt(row["bucket_start"]), row["device_id"], _rollup(row)) for row in rows]
+
+    # --------------------------------------------------------------------- incident history
+
+    def record_incident_event(
+        self,
+        check_name: str,
+        transition: str,
+        *,
+        occurred_at: datetime,
+        severity: Severity | None,
+    ) -> None:
+        with self._transaction() as conn:
+            conn.execute(
+                "INSERT INTO incident_events (check_name, transition, occurred_at, severity) "
+                "VALUES (?, ?, ?, ?)",
+                (check_name, transition, _epoch(occurred_at), severity),
+            )
+
+    def list_incident_events(
+        self,
+        *,
+        since: datetime | None = None,
+        check_name: str | None = None,
+        limit: int = 100,
+    ) -> list[IncidentEventRecord]:
+        """Most recent first."""
+        sql = "SELECT * FROM incident_events WHERE 1 = 1"
+        params: list[object] = []
+        if since is not None:
+            sql += " AND occurred_at >= ?"
+            params.append(_epoch(since))
+        if check_name is not None:
+            sql += " AND check_name = ?"
+            params.append(check_name)
+        rows = self._read(sql + " ORDER BY occurred_at DESC, id DESC LIMIT ?", (*params, limit))
+        return [
+            IncidentEventRecord(
+                check_name=row["check_name"],
+                transition=row["transition"],
+                occurred_at=_dt(row["occurred_at"]),
+                severity=row["severity"],
+            )
+            for row in rows
+        ]
 
 
 def _rollup(row: sqlite3.Row) -> Rollup:

@@ -1,21 +1,33 @@
+/**
+ * Design tokens. "Night Ops": dark-first by default (bare :root), with a light override for an
+ * explicit `data-theme="light"` choice and for `prefers-color-scheme: light` when no explicit
+ * choice has been made. System-font stacks only (no webfont fetch: zero network/bundle cost, and
+ * a DNS appliance's own admin UI should never depend on an external font host to render).
+ */
 :root {
-  --color-bg: #f5f6f8;
-  --color-surface: #ffffff;
-  --color-border: #d9dce2;
-  --color-text: #1a1f29;
-  --color-text-muted: #5b6472;
-  --color-primary: #1d4ed8;
-  --color-primary-hover: #1e40af;
-  --color-primary-contrast: #ffffff;
+  --color-bg: #0a0b11;
+  --color-surface: #12141d;
+  --color-surface-raised: #171a25;
+  --color-border: rgba(255, 255, 255, 0.08);
+  --color-text: #eef0f6;
+  --color-text-muted: #9297ab;
+  --color-primary: #8f6bf5;
+  --color-primary-hover: #a586ff;
+  --color-primary-contrast: #08090d;
 
-  --color-ok: #15803d;
-  --color-ok-bg: #dcfce7;
-  --color-warning: #b45309;
-  --color-warning-bg: #fef3c7;
-  --color-critical: #b91c1c;
-  --color-critical-bg: #fee2e2;
-  --color-unknown: #4b5563;
-  --color-unknown-bg: #e5e7eb;
+  --color-accent-from: #31d6ee;
+  --color-accent-to: #8f6bf5;
+  --color-accent: #8f6bf5;
+  --color-admin-accent: #f5a623;
+
+  --color-ok: #34d399;
+  --color-ok-bg: rgba(52, 211, 153, 0.13);
+  --color-warning: #f5a623;
+  --color-warning-bg: rgba(245, 166, 35, 0.14);
+  --color-critical: #f2545b;
+  --color-critical-bg: rgba(242, 84, 91, 0.14);
+  --color-unknown: #9297ab;
+  --color-unknown-bg: rgba(146, 151, 171, 0.14);
 
   --space-1: 4px;
   --space-2: 8px;
@@ -29,6 +41,8 @@
 
   --font-sans:
     system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-mono:
+    ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
   --font-size-sm: 0.8125rem;
   --font-size-base: 0.9375rem;
   --font-size-lg: 1.125rem;
@@ -37,4 +51,64 @@
   --nav-height: 56px;
   --content-max-width: 1200px;
   --touch-target: 44px;
+  --rail-width-expanded: 220px;
+  --rail-width-collapsed: 64px;
+  --z-overlay: 1000;
+}
+
+/* Explicit light choice always wins, in both directions. */
+:root[data-theme="light"] {
+  --color-bg: #f5f6f8;
+  --color-surface: #ffffff;
+  --color-surface-raised: #f6f7fb;
+  --color-border: #d9dce2;
+  --color-text: #1a1f29;
+  --color-text-muted: #5b6472;
+  --color-primary: #1d4ed8;
+  --color-primary-hover: #1e40af;
+  --color-primary-contrast: #ffffff;
+
+  --color-accent-from: #0891a8;
+  --color-accent-to: #6c4fd6;
+  --color-accent: #1d4ed8;
+  --color-admin-accent: #b45309;
+
+  --color-ok: #15803d;
+  --color-ok-bg: #dcfce7;
+  --color-warning: #b45309;
+  --color-warning-bg: #fef3c7;
+  --color-critical: #b91c1c;
+  --color-critical-bg: #fee2e2;
+  --color-unknown: #4b5563;
+  --color-unknown-bg: #e5e7eb;
+}
+
+/* No explicit data-theme: follow the OS. Dark is already the bare :root default above, so only
+   the light branch needs restating here. */
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="dark"]) {
+    --color-bg: #f5f6f8;
+    --color-surface: #ffffff;
+    --color-surface-raised: #f6f7fb;
+    --color-border: #d9dce2;
+    --color-text: #1a1f29;
+    --color-text-muted: #5b6472;
+    --color-primary: #1d4ed8;
+    --color-primary-hover: #1e40af;
+    --color-primary-contrast: #ffffff;
+
+    --color-accent-from: #0891a8;
+    --color-accent-to: #6c4fd6;
+    --color-accent: #1d4ed8;
+    --color-admin-accent: #b45309;
+
+    --color-ok: #15803d;
+    --color-ok-bg: #dcfce7;
+    --color-warning: #b45309;
+    --color-warning-bg: #fef3c7;
+    --color-critical: #b91c1c;
+    --color-critical-bg: #fee2e2;
+    --color-unknown: #4b5563;
+    --color-unknown-bg: #e5e7eb;
+  }
 }

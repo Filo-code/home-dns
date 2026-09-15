@@ -12,7 +12,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from enum import StrEnum
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, computed_field, model_validator
 
 
 class ThresholdState(StrEnum):
@@ -61,6 +61,7 @@ class DiskUsage(_Model):
             raise ValueError("used_bytes cannot exceed total_bytes")
         return self
 
+    @computed_field  # type: ignore[prop-decorator]
     @property
     def used_percent(self) -> float:
         if self.total_bytes == 0:

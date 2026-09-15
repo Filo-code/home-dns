@@ -27,6 +27,7 @@ const EMPTY_OVERVIEW = jsonResponse(200, {
   open_incidents: 0,
   last_backup_at: null,
   last_blocklist_update_at: null,
+  storage: { total_bytes: 0, used_bytes: 0, free_bytes: 0, used_percent: 0 },
 });
 
 const EMPTY_HISTORY = jsonResponse(200, {
@@ -35,6 +36,39 @@ const EMPTY_HISTORY = jsonResponse(200, {
   until: "2026-09-14T00:00:00Z",
   device_id: null,
   points: [],
+});
+
+const EMPTY_INCIDENTS = jsonResponse(200, []);
+
+const EMPTY_CONFIG = jsonResponse(200, {
+  dns_provider: "mock",
+  notifier: "mock",
+  groups: [],
+  policies: [],
+  blocklist_sources: [],
+  storage: {
+    thresholds_percent: {
+      healthy_below: 70,
+      warning_from: 70,
+      auto_cleanup_from: 80,
+      emergency_from: 90,
+    },
+    retention: {
+      logs_max_bytes: 1024,
+      logs_backup_count: 5,
+      temp_max_age_hours: 24,
+      backups_keep: 7,
+      query_history_days: 30,
+    },
+  },
+  metrics: {
+    poll_interval_seconds: 30,
+    flush_interval_seconds: 300,
+    timezone: "Europe/Rome",
+    minute_retention_hours: 24,
+    hour_retention_days: 30,
+    day_retention_days: 400,
+  },
 });
 
 afterEach(() => {
@@ -59,8 +93,10 @@ describe("App", () => {
     // partway through would race the pending boot effect and consume the wrong entry.
     installMockFetch([
       jsonResponse(200, { username: "anna", role: "admin", csrf_token: "t" }),
-      EMPTY_OVERVIEW,
       EMPTY_HISTORY,
+      EMPTY_INCIDENTS,
+      EMPTY_OVERVIEW,
+      EMPTY_CONFIG,
     ]);
     render(<App />);
     await waitFor(() => expect(window.location.pathname).toBe("/"));

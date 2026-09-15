@@ -19,6 +19,7 @@ from home_dns.config.storage import load_storage_config
 from home_dns.core.auth import Role, ScryptParams, hash_password
 from home_dns.core.models import QueryFilter, QueryPage
 from home_dns.core.monitoring import Incident, IncidentState
+from home_dns.core.storage import DiskUsage
 from home_dns.providers.base import ProviderUnavailableError
 from home_dns.providers.mock import MockDnsProvider
 from home_dns.storage.dashboard import DashboardStore
@@ -123,6 +124,7 @@ VIEWER_ROUTES = [
     "/api/v1/devices/1",
     "/api/v1/metrics/history",
     "/api/v1/alerts",
+    "/api/v1/incidents/history",
     "/api/v1/config",
 ]
 ADMIN_ROUTES = ["/api/v1/devices/1/activity", "/api/v1/queries"]
@@ -483,6 +485,59 @@ def test_config_view_is_an_allowlist(env: Env) -> None:
         "storage",
         "metrics",
     }
+    assert set(body["blocklist_sources"][0]) == {
+        "id",
+        "name",
+        "categories",
+        "update_interval_hours",
+        "last_activated_at",
+    }
+
+
+def test_overview_includes_live_storage_usage(env: Env) -> None:
+    env.context.disk_usage = lambda: DiskUsage(
+        total_bytes=1_000_000, used_bytes=850_000, free_bytes=150_000
+    )
+    client, _ = env.login("viewer", VIEWER_PW)
+    storage = client.get("/api/v1/overview").json()["storage"]
+    assert storage["total_bytes"] == 1_000_000
+    assert storage["used_bytes"] == 850_000
+    assert storage["used_percent"] == 85.0
+
+
+def test_overview_defaults_storage_to_zero_when_unwired(env: Env) -> None:
+    # Env never overrides disk_usage, so this exercises DashboardContext's own zero default —
+    # it never lies about real usage when no provider is wired in.
+    client, _ = env.login("viewer", VIEWER_PW)
+    storage = client.get("/api/v1/overview").json()["storage"]
+    assert storage == {"total_bytes": 0, "used_bytes": 0, "free_bytes": 0, "used_percent": 0.0}
+
+
+def test_config_exposes_per_source_blocklist_freshness(env: Env) -> None:
+    when = datetime(2026, 9, 13, 4, 0, tzinfo=UTC)
+    env.context.blocklist_freshness = lambda: {"hagezi-multi-pro": when}
+    client, _ = env.login("viewer", VIEWER_PW)
+    config_body = client.get("/api/v1/config").json()
+    sources = {s["id"]: s["last_activated_at"] for s in config_body["blocklist_sources"]}
+    assert sources["hagezi-multi-pro"] == "2026-09-13T04:00:00Z"
+    assert sources["hagezi-tif-mini"] is None  # not in the freshness map: honestly unknown
+
+
+def test_incident_history_lists_persisted_transitions(env: Env) -> None:
+    t1 = datetime(2026, 9, 13, 4, 0, tzinfo=UTC)
+    t2 = datetime(2026, 9, 13, 5, 0, tzinfo=UTC)
+    env.store.record_incident_event("storage", "opened", occurred_at=t1, severity="warning")
+    env.store.record_incident_event("storage", "recovered", occurred_at=t2, severity=None)
+    client, _ = env.login("viewer", VIEWER_PW)
+    body = client.get("/api/v1/incidents/history").json()
+    assert [(e["transition"], e["severity"]) for e in body] == [
+        ("recovered", None),
+        ("opened", "warning"),
+    ]
+    assert "notified" not in body[0]  # not tracked anywhere in this codebase yet — never fabricated
+
+    limited = client.get("/api/v1/incidents/history", params={"limit": 1}).json()
+    assert len(limited) == 1
 
 
 def test_no_response_contains_secrets(env: Env, monkeypatch: pytest.MonkeyPatch) -> None:

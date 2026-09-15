@@ -587,6 +587,24 @@ def _serve(args: argparse.Namespace, err: TextIO, now: Callable[[], datetime]) -
     return EXIT_OK
 
 
+def _blocklist_activations(
+    data_dir: Path, filtering: FilteringConfig
+) -> dict[str, datetime | None]:
+    """Per-source last-successful-activation timestamp, read from artifact metadata already
+    written by the pipeline (``pipeline/blocklists.py``) — no new storage. Shared by the
+    dashboard's aggregate ``status()`` and its per-source freshness view."""
+    artifacts = ArtifactStore(data_dir / "blocklists")
+    activations: dict[str, datetime | None] = {}
+    for source in filtering.sources:
+        try:
+            metadata = artifacts.current_metadata(source.id) or {}
+        except ArtifactStoreError:
+            continue  # surfaced by `blocklists status`; the dashboard shows what it can
+        activated_at = metadata.get("activated_at")
+        activations[source.id] = datetime.fromisoformat(activated_at) if activated_at else None
+    return activations
+
+
 def _dashboard_context(
     config: LoadedConfig,
     provider: DnsProvider,
@@ -595,23 +613,20 @@ def _dashboard_context(
     storage_config: StorageConfig,
     paths: dict[str, Path],
     now: Callable[[], datetime],
+    *,
+    disk: DiskUsageProvider | None = None,
 ) -> DashboardContext:
     settings = config.settings
     metrics = settings.metrics
     tz = ZoneInfo(metrics.timezone)
     data_dir = paths["data_dir"]
+    disk_provider = disk or SystemDiskUsage()
 
     def status() -> MaintenanceStatus:
         backups = [info for info in list_backups(paths["backup_dir"]) if info.valid]
-        artifacts = ArtifactStore(data_dir / "blocklists")
-        activations = []
-        for source in filtering.sources:
-            try:
-                metadata = artifacts.current_metadata(source.id) or {}
-            except ArtifactStoreError:
-                continue  # surfaced by `blocklists status`; the dashboard shows what it can
-            if "activated_at" in metadata:
-                activations.append(datetime.fromisoformat(metadata["activated_at"]))
+        activations = [
+            at for at in _blocklist_activations(data_dir, filtering).values() if at is not None
+        ]
         try:
             incidents = tuple(MonitoringStore(data_dir / "monitoring").list_incidents())
         except MonitoringStoreError:
@@ -641,6 +656,8 @@ def _dashboard_context(
             settings, filtering, storage_config.thresholds, storage_config.retention
         ),
         status=status,
+        disk_usage=lambda: disk_provider.get(data_dir),
+        blocklist_freshness=lambda: _blocklist_activations(data_dir, filtering),
         tz=tz,
         cookie_secure=settings.api.cookie_secure is not False,
         session_idle=timedelta(minutes=settings.api.session_idle_minutes),
@@ -1172,6 +1189,7 @@ def _monitoring(
     err: TextIO,
     now: Callable[[], datetime],
     disk: DiskUsageProvider | None = None,
+    dashboard_store: DashboardStore | None = None,
 ) -> int:
     try:
         config, config_dir = _load(args)
@@ -1222,6 +1240,21 @@ def _monitoring(
         )
         mon_store.save_incident(incident, dry_run=not args.apply)
         alert = _storage_alert(report, transition)
+
+        # Deliberately minimal, persisted history (docs: incident_events migration doc). Only
+        # real opened/recovered transitions are recorded, only when --apply, never on a dry run.
+        if args.apply and transition in (TransitionKind.OPENED, TransitionKind.RECOVERED):
+            history = dashboard_store or DashboardStore.open(data_dir)
+            try:
+                history.record_incident_event(
+                    result.name,
+                    transition.value,
+                    occurred_at=now(),
+                    severity=alert.severity if alert else None,
+                )
+            finally:
+                if dashboard_store is None:
+                    history.close()
 
         if args.format == "json":
             json.dump(
@@ -1337,6 +1370,7 @@ def main(
     fetcher: Fetcher | None = None,
     disk: DiskUsageProvider | None = None,
     notifier: Notifier | None = None,
+    dashboard_store: DashboardStore | None = None,
 ) -> int:
     out = out or sys.stdout
     err = err or sys.stderr
@@ -1351,7 +1385,7 @@ def main(
     if args.command == "storage":
         return _storage(args, out, err, clock, disk)
     if args.command == "monitoring":
-        return _monitoring(args, out, err, clock, disk)
+        return _monitoring(args, out, err, clock, disk, dashboard_store)
     if args.command == "notify":
         return _notify(args, out, err, clock, notifier)
     if args.command == "auth":

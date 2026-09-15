@@ -896,8 +896,15 @@ def test_backup_cleans_up_snapshot_directory_even_when_create_backup_fails(
 
 # ---------------------------------------------------------------------- A5: monitoring commands
 
+from home_dns.storage.dashboard import DashboardStore  # noqa: E402
 
-def _mon(config_dir: Path, *argv: str, disk: _FakeDisk | None = None) -> tuple[int, str, str]:
+
+def _mon(
+    config_dir: Path,
+    *argv: str,
+    disk: _FakeDisk | None = None,
+    dashboard_store: DashboardStore | None = None,
+) -> tuple[int, str, str]:
     out, err = io.StringIO(), io.StringIO()
     code = cli.main(
         ["monitoring", *argv, "--config-dir", str(config_dir)],
@@ -905,6 +912,7 @@ def _mon(config_dir: Path, *argv: str, disk: _FakeDisk | None = None) -> tuple[i
         err=err,
         now=lambda: FIXED_NOW,
         disk=disk or _FakeDisk(10),
+        dashboard_store=dashboard_store,
     )
     return code, out.getvalue(), err.getvalue()
 
@@ -944,6 +952,33 @@ def test_monitoring_status_recovers_after_incident(make_config_dir: MakeConfigDi
     code, out, _ = _mon(config_dir, "status", "--apply", disk=_FakeDisk(10))
     assert code == 0 and "transition=recovered" in out
     assert "alert [info] service_recovered" in out
+
+
+def test_monitoring_status_persists_incident_history_only_on_real_transitions(
+    make_config_dir: MakeConfigDir,
+) -> None:
+    config_dir = make_config_dir(DEV_PROFILE)
+    data_dir = config_dir.parent / ".local" / "data"
+
+    assert _mon(config_dir, "status", disk=_FakeDisk(95))[0] == 0  # dry-run: nothing persisted
+    assert _mon(config_dir, "status", "--apply", disk=_FakeDisk(95))[0] == 0  # -> suspect only
+
+    store = DashboardStore.open(data_dir)
+    try:
+        assert store.list_incident_events() == []  # neither dry-run nor suspect persisted
+
+        assert _mon(config_dir, "status", "--apply", disk=_FakeDisk(95))[0] == 0  # -> opened
+        assert [(e.transition, e.severity) for e in store.list_incident_events()] == [
+            ("opened", "critical")
+        ]
+
+        assert _mon(config_dir, "status", "--apply", disk=_FakeDisk(10))[0] == 0  # -> recovered
+        assert [(e.transition, e.severity) for e in store.list_incident_events()] == [
+            ("recovered", "info"),
+            ("opened", "critical"),
+        ]
+    finally:
+        store.close()
 
 
 def test_monitoring_status_json_format(make_config_dir: MakeConfigDir) -> None:

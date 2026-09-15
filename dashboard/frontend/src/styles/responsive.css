@@ -70,16 +70,113 @@
   }
 }
 
+/* From tablet width up there's room for the "updated at" timestamp and the full ⌘K trigger
+ * (hidden at phone width to keep the top bar from crowding, see base.css defaults). */
+@media (min-width: 481px) {
+  .topbar__updated,
+  .topbar__palette-trigger {
+    display: inline-flex;
+  }
+}
+
 /* Tablet / iPad (481-1024px) */
 @media (min-width: 481px) and (max-width: 1024px) {
   .card-grid {
     grid-template-columns: repeat(2, 1fr);
   }
+
+  .card-grid--health {
+    grid-template-columns: minmax(200px, 300px) 1fr;
+  }
+
+  .card-grid--system {
+    grid-template-columns: 1fr 1fr;
+  }
 }
 
-/* Desktop (>1024px) */
+/* Desktop (>1024px): the nav becomes a collapsible icon rail instead of a top bar, and the app
+ * shell lays out as a row (rail + main column) instead of a single stacked column. */
 @media (min-width: 1025px) {
   .card-grid {
     grid-template-columns: repeat(4, 1fr);
+  }
+
+  .card-grid--health {
+    grid-template-columns: minmax(220px, 340px) 1fr;
+  }
+
+  .card-grid--system {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .app-shell {
+    flex-direction: row;
+    align-items: stretch;
+  }
+
+  .nav {
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--space-4);
+    width: var(--rail-width-expanded);
+    min-height: 100vh;
+    padding: var(--space-4) var(--space-3);
+    border-bottom: none;
+    border-right: 1px solid var(--color-border);
+    position: sticky;
+    top: 0;
+    transition: width 0.18s ease;
+  }
+
+  .nav--collapsed {
+    width: var(--rail-width-collapsed);
+  }
+
+  .nav__links {
+    position: static;
+    flex-direction: column;
+    align-items: stretch;
+    height: auto;
+    background: none;
+    border-top: none;
+    overflow-x: visible;
+  }
+
+  .nav__link {
+    justify-content: flex-start;
+  }
+
+  .nav--collapsed .nav__link {
+    justify-content: center;
+  }
+
+  .nav__username {
+    display: inline;
+  }
+
+  .nav__user {
+    flex-wrap: wrap;
+    margin-top: auto;
+    padding-top: var(--space-3);
+    border-top: 1px solid var(--color-border);
+  }
+
+  .nav__collapse-toggle {
+    display: inline-flex;
+  }
+
+  .nav--collapsed .nav__brand-word,
+  .nav--collapsed .nav__health-text,
+  .nav--collapsed .nav__link span,
+  .nav--collapsed .nav__username {
+    display: none;
+  }
+
+  .nav--collapsed .nav__health {
+    justify-content: center;
+  }
+
+  .app-shell__content {
+    padding-bottom: var(--space-5);
   }
 }

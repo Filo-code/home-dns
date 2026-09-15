@@ -23,8 +23,8 @@ from home_dns.core.models import (
     QueryPage,
     SystemMetrics,
 )
-from home_dns.core.monitoring import IncidentState
-from home_dns.core.storage import RetentionPolicy, StorageThresholds
+from home_dns.core.monitoring import IncidentState, Severity
+from home_dns.core.storage import DiskUsage, RetentionPolicy, StorageThresholds
 from home_dns.providers.base import DnsProvider, ProviderError
 from home_dns.storage.dashboard import DeviceRecord
 
@@ -110,6 +110,7 @@ class OverviewResponse(BaseModel):
     open_incidents: int
     last_backup_at: datetime | None
     last_blocklist_update_at: datetime | None
+    storage: DiskUsage
 
 
 class DeviceView(BaseModel):
@@ -164,6 +165,18 @@ class IncidentView(BaseModel):
     state: IncidentState
     opened_at: datetime | None
     last_change_at: datetime | None
+
+
+class IncidentEventView(BaseModel):
+    """One persisted opened/recovered transition. Deliberately minimal — see
+    storage/dashboard.py's ``incident_events`` table doc. No "notified" flag: the CLI monitoring
+    command does not itself confirm a Telegram send, so that status is not actually known here and
+    is not fabricated."""
+
+    check_name: str
+    transition: str
+    occurred_at: datetime
+    severity: Severity | None
 
 
 # ------------------------------------------------------------------------------ helpers
@@ -233,6 +246,7 @@ def overview(_: Session, context: Context, provider: Provider) -> OverviewRespon
         open_incidents=sum(1 for i in maintenance.incidents if i.state is not IncidentState.OK),
         last_backup_at=maintenance.last_backup_at,
         last_blocklist_update_at=maintenance.last_blocklist_update_at,
+        storage=context.disk_usage(),
     )
 
 
@@ -386,9 +400,36 @@ def alerts(_: Session, context: Context) -> list[IncidentView]:
     ]
 
 
+@router.get("/incidents/history", response_model=list[IncidentEventView])
+def incident_history(
+    _: Session,
+    context: Context,
+    limit: Annotated[int, Query(ge=1, le=200)] = 30,
+    since: AwareDatetime | None = None,
+) -> list[IncidentEventView]:
+    return [
+        IncidentEventView(
+            check_name=e.check_name,
+            transition=e.transition,
+            occurred_at=e.occurred_at,
+            severity=e.severity,
+        )
+        for e in context.store.list_incident_events(since=since, limit=limit)
+    ]
+
+
 @router.get("/config")
 def config(_: Session, context: Context) -> dict[str, Any]:
-    return context.config_view
+    """A shallow, per-request enrichment of the cached ``config_view`` with live per-source
+    blocklist-freshness timestamps — the base view is built once at startup (see
+    ``build_config_view``), so a live timestamp cannot be baked into it without going stale."""
+    freshness = context.blocklist_freshness()
+    view = dict(context.config_view)
+    view["blocklist_sources"] = [
+        {**source, "last_activated_at": freshness.get(source["id"])}
+        for source in view["blocklist_sources"]
+    ]
+    return view
 
 
 def build_config_view(

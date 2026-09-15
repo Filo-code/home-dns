@@ -3,7 +3,6 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { renderAuthenticatedPage } from "../test-utils/renderAuthenticated";
 import { jsonResponse } from "../test-utils/mockFetch";
-import { installMockFetch } from "../test-utils/mockFetch";
 import { Overview } from "./Overview";
 
 const EMPTY_HISTORY = jsonResponse(200, {
@@ -13,6 +12,8 @@ const EMPTY_HISTORY = jsonResponse(200, {
   device_id: null,
   points: [],
 });
+
+const EMPTY_INCIDENTS = jsonResponse(200, []);
 
 function overview(overrides: Record<string, unknown> = {}) {
   return jsonResponse(200, {
@@ -44,9 +45,66 @@ function overview(overrides: Record<string, unknown> = {}) {
     open_incidents: 2,
     last_backup_at: "2026-09-14T03:00:00Z",
     last_blocklist_update_at: "2026-09-14T04:00:00Z",
+    storage: {
+      total_bytes: 1_000_000,
+      used_bytes: 300_000,
+      free_bytes: 700_000,
+      used_percent: 30,
+    },
     ...overrides,
   });
 }
+
+function config(overrides: Record<string, unknown> = {}) {
+  return jsonResponse(200, {
+    dns_provider: "mock",
+    notifier: "mock",
+    groups: [],
+    policies: [],
+    blocklist_sources: [
+      {
+        id: "hagezi-multi-pro",
+        name: "HaGeZi Multi PRO",
+        categories: ["advertising"],
+        update_interval_hours: 24,
+        last_activated_at: "2026-09-14T04:00:00Z",
+      },
+    ],
+    storage: {
+      thresholds_percent: {
+        healthy_below: 70,
+        warning_from: 70,
+        auto_cleanup_from: 80,
+        emergency_from: 90,
+      },
+      retention: {
+        logs_max_bytes: 1024,
+        logs_backup_count: 5,
+        temp_max_age_hours: 24,
+        backups_keep: 7,
+        query_history_days: 30,
+      },
+    },
+    metrics: {
+      poll_interval_seconds: 30,
+      flush_interval_seconds: 300,
+      timezone: "Europe/Rome",
+      minute_retention_hours: 24,
+      hour_retention_days: 30,
+      day_retention_days: 400,
+    },
+    ...overrides,
+  });
+}
+
+/** Overview's effects fire in this order after the session: its own two mount-only fetches
+ * (history, incident history) as OverviewProvider's child, then OverviewProvider's own polled
+ * overview fetch, then its config fetch — see App.tsx/OverviewContext.tsx for why. */
+function queueOverviewPage(overrides: Record<string, unknown> = {}) {
+  return [EMPTY_HISTORY, EMPTY_INCIDENTS, overview(overrides), config()];
+}
+
+const NOOP = () => {};
 
 afterEach(() => {
   cleanup();
@@ -55,46 +113,60 @@ afterEach(() => {
 
 describe("Overview", () => {
   it("shows the loading state before data arrives", async () => {
-    await renderAuthenticatedPage(<Overview />, { responses: [] });
+    await renderAuthenticatedPage(<Overview role="admin" onRequestAdminAction={NOOP} />, {
+      responses: [],
+      withOverview: true,
+    });
     expect(screen.getByText("Caricamento…")).toBeTruthy();
   });
 
-  it("renders DNS status, 24h counters and system metrics", async () => {
-    await renderAuthenticatedPage(<Overview />, { responses: [overview(), EMPTY_HISTORY] });
+  it("renders the health ring, ledger and 24h counters", async () => {
+    await renderAuthenticatedPage(<Overview role="admin" onRequestAdminAction={NOOP} />, {
+      responses: queueOverviewPage(),
+      withOverview: true,
+    });
     await waitFor(() => expect(screen.getByRole("heading", { name: "Panoramica" })).toBeTruthy());
-    expect(screen.getByText(/Servizio DNS: attivo/)).toBeTruthy();
     expect(screen.getByText("1000")).toBeTruthy(); // Intl "min2" grouping: 4 digits, 1 leading
     expect(screen.getByText("20%")).toBeTruthy();
     expect(screen.getByText(/45\.0 °C/)).toBeTruthy();
+    expect(screen.getByText("DNS")).toBeTruthy(); // health ledger row label
   });
 
   it("shows a fallback message instead of crashing when the provider is down", async () => {
-    await renderAuthenticatedPage(<Overview />, {
-      responses: [
-        overview({ system: null, provider: { name: "mock", status: "down" } }),
-        EMPTY_HISTORY,
-      ],
+    await renderAuthenticatedPage(<Overview role="admin" onRequestAdminAction={NOOP} />, {
+      responses: queueOverviewPage({ system: null, provider: { name: "mock", status: "down" } }),
+      withOverview: true,
     });
     await waitFor(() => expect(screen.getByText(/Dati di sistema non disponibili/)).toBeTruthy());
-    expect(screen.getByText(/Servizio DNS: non risponde/)).toBeTruthy();
   });
 
   it('shows "in attesa" when metrics_as_of is still null', async () => {
-    await renderAuthenticatedPage(<Overview />, {
-      responses: [overview({ metrics_as_of: null }), EMPTY_HISTORY],
+    await renderAuthenticatedPage(<Overview role="admin" onRequestAdminAction={NOOP} />, {
+      responses: queueOverviewPage({ metrics_as_of: null }),
+      withOverview: true,
     });
     await waitFor(() =>
       expect(screen.getByText(/In attesa dei primi dati aggregati/)).toBeTruthy(),
     );
   });
 
-  it("shows an error state with retry on failure, and retry recovers", async () => {
-    await renderAuthenticatedPage(<Overview />, { responses: [{ status: 503 }, { status: 503 }] });
+  it("hides the admin quick actions for a viewer", async () => {
+    await renderAuthenticatedPage(<Overview role="viewer" onRequestAdminAction={NOOP} />, {
+      responses: queueOverviewPage(),
+      withOverview: true,
+      role: "viewer",
+    });
+    await waitFor(() => expect(screen.getByRole("heading", { name: "Panoramica" })).toBeTruthy());
+    expect(screen.queryByRole("button", { name: /Aggiorna blocklist/ })).toBeNull();
+    expect(screen.queryByRole("button", { name: /Backup/ })).toBeNull();
+  });
+
+  it("shows an error state on failure", async () => {
+    await renderAuthenticatedPage(<Overview role="admin" onRequestAdminAction={NOOP} />, {
+      responses: [EMPTY_HISTORY, EMPTY_INCIDENTS, { status: 503 }, { status: 503 }],
+      withOverview: true,
+    });
     await waitFor(() => screen.getByRole("alert"));
     expect(screen.getByRole("alert").textContent).toContain("Il servizio DNS non risponde");
-
-    installMockFetch([overview(), EMPTY_HISTORY]);
-    screen.getByRole("button", { name: "Riprova" }).click();
-    await waitFor(() => expect(screen.getByRole("heading", { name: "Panoramica" })).toBeTruthy());
   });
 });
