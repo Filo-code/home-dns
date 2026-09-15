@@ -1,10 +1,10 @@
-# Stage C lab installation: Pi-hole v6 — 2026-09-15
+# Stage C lab installation: Pi-hole v6 + Unbound — 2026-09-15
 
 > **Scope note:** unlike the other files in this directory, this is not a passive, read-only audit. It records a real, owner-approved installation and verification performed against the live Raspberry Pi (`home-dns.local`, currently DHCP-assigned `192.168.1.121`). Every step here was explicitly authorized turn-by-turn; see the safety confirmation at the end for exactly what was and was not touched.
 
 ## 1. What this is
 
-A controlled **laboratory** installation of Pi-hole v6, native (no Docker), on the Raspberry Pi that will eventually run the project's real DNS/filtering stack. The Raspberry Pi is **not** the LAN's DNS server. Nothing on the router, DHCP, or any other client was changed. Unbound was intentionally **not** installed in this pass — that is the next, separately-approved step.
+A controlled **laboratory** installation of Pi-hole v6 and Unbound, both native (no Docker), on the Raspberry Pi that will eventually run the project's real DNS/filtering stack. The Raspberry Pi is **not** the LAN's DNS server. Nothing on the router, DHCP, or any other client was changed. §§1–9 below cover the original Pi-hole-only install; §§11–17 cover the Unbound install performed afterward, in the same lab, under the same constraints.
 
 ## 2. Pi-hole installation
 
@@ -153,14 +153,14 @@ Measured after the full install + two gravity builds (355,727-domain DB) + the f
 
 No artificial load/stress test was run, per the owner's instruction — this is real usage from the install, two gravity rebuilds, and the ~304-query test pass.
 
-## 9. What was intentionally not done
+## 9. What was intentionally not done (as of the Pi-hole-only pass)
 
-- Unbound was **not** installed. Pi-hole's upstream remains the temporary bootstrap value `192.168.1.254` (the router) — not a production value, and not hard-coded anywhere outside this lab's own Pi-hole config.
-- `PiholeV6Provider` was **not** implemented (see §7).
+- Unbound was **not yet** installed at this point in the session — **superseded, see §11 onward**: it was installed later the same day, under separate explicit approval.
+- `PiholeV6Provider` was **not** implemented (see §7). Still true after the Unbound work — see §16.
 - No permanent update timers/cron/systemd units were created for blocklist updates; `pihole -g` was run twice, both times manually.
 - No stress/load testing was performed.
 
-## 10. Safety confirmation
+## 10. Safety confirmation (Pi-hole-only pass)
 
 - Router: **untouched**. No configuration changes of any kind.
 - DHCP: **untouched** and confirmed off in Pi-hole itself (`[dhcp] active = false`; the v6 installer has no path to enable it).
@@ -168,4 +168,165 @@ No artificial load/stress test was run, per the owner's instruction — this is 
 - Other LAN clients: **untouched** — they continue to use the router's existing DNS. Only the Pi itself, queried explicitly by IP, was used for every DNS test in this document.
 - `/etc/resolv.conf` on the Pi itself: **unchanged**.
 - Firewall: **not touched or configured** (out of scope for this task).
-- **Unbound: not installed.** Next step requires separate, explicit approval.
+- Unbound: not installed at this point — see §11 onward and the final safety confirmation in §17.
+
+---
+
+## 11. Unbound installation
+
+Installed via the native Debian package (`apt-get install unbound`), no third-party repo, no source build, no Docker.
+
+| Field | Value |
+|---|---|
+| Package | `unbound` 1.22.0-2+deb13u3 (Debian trixie) |
+| Unbound version | 1.22.0 |
+| Dependencies pulled in | `libevent-2.1-7t64`, `libhiredis1.1.0` |
+
+Debian's own defaults, inspected before changing anything:
+
+- Root config `/etc/unbound/unbound.conf` just includes `/etc/unbound/unbound.conf.d/*.conf` — the standard Debian layout, left untouched.
+- `/etc/unbound/unbound.conf.d/root-auto-trust-anchor-file.conf` (shipped by the package) already configures `auto-trust-anchor-file: "/var/lib/unbound/root.key"` — Debian provides sensible DNSSEC trust-anchor handling out of the box. Not duplicated or changed.
+- `/etc/unbound/unbound.conf.d/remote-control.conf` (shipped by the package) enables `unbound-control` on `127.0.0.1`/`::1`:8953 — left at its Debian default, not used in this lab.
+- Root hints: no explicit `root-hints:` file is configured; this Unbound build uses its compiled-in IANA root hints, which is normal for a package this recent.
+- `unbound-resolvconf.service` (a systemd helper Debian ships to register Unbound into `/etc/resolv.conf` via `resolvconf`) is present and nominally enabled, but its `ConditionFileIsExecutable=/sbin/resolvconf` never fires — `resolvconf` is **not installed** on this host, confirmed by `ls /sbin/resolvconf`. This was checked deliberately before starting the service, given the task's explicit "no DNS loop involving `/etc/resolv.conf`" constraint: it cannot touch `resolv.conf` on this host.
+
+One file was added: `/etc/unbound/unbound.conf.d/pihole-lab.conf` (on the Pi, not in this repository — it is host-local runtime configuration, matching how `pihole.toml` itself is not committed):
+
+```text
+server:
+    interface: 127.0.0.1@5335
+    interface: ::1@5335
+    port: 5335
+    access-control: 127.0.0.1/32 allow
+    access-control: ::1 allow
+    do-ip4: yes
+    do-ip6: yes
+    do-udp: yes
+    do-tcp: yes
+    prefetch: yes
+    hide-identity: yes
+    hide-version: yes
+    qname-minimisation: yes
+    harden-glue: yes
+    harden-dnssec-stripped: yes
+    use-caps-for-id: no
+```
+
+Every directive was cross-checked against `/usr/share/doc/unbound/examples/unbound.conf`, the reference example shipped by this exact package — nothing here was invented. DNSSEC validation relies entirely on the Debian-provided `root-auto-trust-anchor-file.conf`; no second, redundant trust-anchor directive was added.
+
+`sudo unbound-checkconf` → `no errors in /etc/unbound/unbound.conf`, run before the service was ever started.
+
+Note: the very first `systemctl start` attempt (before this config file existed) failed — Debian's stock config, absent any `interface:` override, still defaults to port 53 on loopback, which collided with `pihole-FTL` already bound there. This is exactly why the explicit `port: 5335` / `interface: ...@5335` override above is necessary; it was not a surprise once the log was read (`can't bind socket: Address already in use for ::1 port 53`), and nothing was force-killed or overwritten to work around it — the real fix was adding the correct config.
+
+Service: `unbound.service`, enabled, `active (running)`.
+
+## 12. Listener isolation (Unbound)
+
+`ss -lntup` after starting Unbound:
+
+```
+udp   127.0.0.1:5335   unbound
+udp       [::1]:5335   unbound
+tcp   127.0.0.1:5335   unbound  (LISTEN)
+tcp       [::1]:5335   unbound  (LISTEN)
+```
+
+No `0.0.0.0:5335`. No `[::]:5335`. No LAN-address:5335. Confirmed both by listener inspection and by an explicit connection attempt from the Pi itself (§14).
+
+## 13. Direct Unbound tests (bypassing Pi-hole, `@127.0.0.1 -p 5335`)
+
+| Test | Result |
+|---|---|
+| A (`example.com`) | `172.66.147.243`, `104.20.23.154` — NOERROR, 155 ms cold |
+| AAAA (`example.com`) | two `2606:4700:10::...` addresses — NOERROR, 11 ms |
+| NXDOMAIN (nonexistent name) | `status: NXDOMAIN`, SOA in authority — correct |
+| Repeat query / cache (`wikipedia.org`) | first 0 ms, second 3 ms — both fast; NS/TLD delegation was likely already warm from earlier tests, so this is not a dramatic cold-vs-warm contrast, but both are consistent with a local resolver, not a WAN round trip |
+| DNSSEC-validating (`cloudflare.com`, `+dnssec`) | `flags: qr rd ra ad` — **AD bit set**, RRSIG returned. Real, measured validation — not assumed. |
+| DNSSEC bogus/failure (`dnssec-failed.org`, `+dnssec`) | `status: SERVFAIL`, no answer, no AD — Unbound actively **rejected** an invalid signature chain rather than passing it through |
+
+`dnssec-failed.org` is Verisign/Comcast's long-standing, widely used public test domain for exactly this purpose (intentionally broken DNSSEC) — not a live or malicious site, DNS-only test.
+
+## 14. LAN exposure test
+
+From the Pi itself:
+
+| Target | Result |
+|---|---|
+| `127.0.0.1:5335` | resolves normally |
+| `192.168.1.121:5335` (the Pi's own LAN address) via `dig` | `connection refused` / `no servers could be reached` |
+| `192.168.1.121:5335` via raw TCP connect (`/dev/tcp`) | `Connection refused` |
+
+Confirms Unbound is not reachable on the LAN interface, from the LAN interface, consistent with the listener inspection in §12.
+
+## 15. Pi-hole → Unbound switch
+
+Pi-hole's config API (`PATCH /api/config`) is real and documented (ground-truthed from the live instance's own OpenAPI spec, `config.yaml`), but the `cli_pw`-authenticated session used throughout this lab is **deliberately restricted from changing config** — confirmed by a real `403 forbidden` / `"The current CLI session is not allowed to modify Pi-hole config settings"` response, matching Pi-hole's own documented `cli_pw` restriction (query + list-management only). Using the actual admin web password to bypass this was avoided on purpose — it was never captured or reused, per the earlier instruction to treat it as fully confidential.
+
+Instead, the change was made through Pi-hole v6's other real, supported mechanism: `/etc/pihole/pihole.toml` is natively human/script-editable, and FTL re-reads it on restart. A backup (`pihole.toml.pre-unbound.bak`, host-local, not in this repo) was taken before the one-line change:
+
+```diff
+- upstreams = ["192.168.1.254"]
++ upstreams = ["127.0.0.1#5335"]
+```
+
+`sudo systemctl restart pihole-FTL` was then required (the only service that needed restarting — Pi-hole's web/API run inside the same FTL process, so nothing else was touched). The restart took its full ~60 s `TimeoutStopUSec` to complete: the old FTL process did not exit promptly on SIGTERM, so systemd's own configured timeout ultimately force-completed the restart — the new FTL process (fresh PID) then came up immediately and healthy. Nothing was manually killed or force-restarted; the outcome was systemd's normal, configured behavior.
+
+Confirmed via `GET /api/stats/upstreams` immediately after: a fresh query counted against `127.0.0.1:5335`, not `192.168.1.254` (the router's 300-query count is historical/lifetime and stopped incrementing).
+
+`/etc/resolv.conf` was **not** touched, per the task's own instruction — the Pi's OS-level resolver continues to use the router for its own bootstrap needs, which is fine and does not create a loop (the OS resolver and Pi-hole's upstream are independent).
+
+## 16. Full chain test (client → Pi-hole :53 → Unbound :5335 → Internet)
+
+| Test | Result |
+|---|---|
+| A | resolves correctly |
+| AAAA | resolves correctly |
+| NXDOMAIN | `status: NXDOMAIN`, correct |
+| Blocked domain (`googlesyndication.com`, HaGeZi) | `0.0.0.0` — still blocked, unaffected by the upstream change |
+| Protected domain (`paypal.com`) | resolves normally |
+| Repeat query / cache | 0 ms then 3 ms |
+| DNSSEC bogus domain through Pi-hole (`dnssec-failed.org`) | `status: SERVFAIL` — **the protection propagates end-to-end through Pi-hole**, even though... |
+| DNSSEC-valid domain through Pi-hole (`cloudflare.com`, `+dnssec`) | `flags: qr rd ra` — **no AD bit**. Pi-hole's own `pihole.toml` has `dnssec = false`, so FTL does not relay/set the AD bit toward the client even when its upstream (Unbound) validated the answer. This was measured, not assumed, and is the concrete meaning of "don't duplicate DNSSEC responsibilities": validation happens once, in Unbound, and it does enforce rejection (SERVFAIL) on failure; the AD-bit visibility to LAN clients is a separate, cosmetic setting that was deliberately left as-is rather than changed unrequested. |
+
+Confirms Pi-hole is genuinely forwarding to Unbound (§15's upstream-count evidence) rather than silently falling back to the router.
+
+## 17. Resource comparison — before vs after Unbound
+
+| Metric | Before (Pi-hole only) | After (+ Unbound, two full test passes) |
+| --- | --- | --- |
+| RAM used | 206 MiB / 3.7 GiB | 212 MiB / 3.7 GiB (Unbound itself: 18 MiB RSS) |
+| CPU | idle, load avg ~0.00 | idle, load avg 0.07 |
+| Temperature | 40.9°C | 39.4°C (noise-level; not a meaningful drop) |
+| Disk | 2.2 GB / 29 GB (8%) | unchanged |
+| DNS latency (cold) | n/a (no Unbound) | 155 ms first A lookup via Unbound direct |
+| DNS latency (cached) | n/a | 0–3 ms |
+
+On a 4 GB Pi, an extra ~18 MiB RSS process and near-zero measured CPU/load delta is comfortably within headroom — there is no resource pressure from adding Unbound at this query volume. This reflects the actual lab's light, manual query load, not a production-scale LAN (~15–16 devices); a follow-up measurement under real LAN volume is still warranted before the eventual production rollout, not assumed from this lab pass.
+
+## 18. Pi-hole verification (post-switch)
+
+- FTL: `active (running)`, `pihole status` reports listening on 53 (UDP/TCP, v4+v6), blocking enabled.
+- Query logging: still `queryLogging = true`.
+- Blocklists: both lists still present and unchanged — `hagezi-multi-pro` 223,220 entries, `hagezi-tif-mini` 177,847 entries, `domains_being_blocked: 355727` (identical to before the Unbound work). Blocklist policy was not touched.
+- No unexpected fallback upstream: `/api/stats/upstreams` shows new queries going to `127.0.0.1:5335`.
+
+## 19. Repository integration
+
+- `PiholeV6Provider` was **not** implemented in this pass either — the same open questions from §7 (credential delivery, session lifecycle, error mapping) still apply, and adding an Unbound-backed upstream doesn't change any of them.
+- No firewall rules added (out of scope, as instructed).
+- No production deployment automation added.
+- No push to GitHub performed.
+- Full `make check` (ruff, ruff format, mypy, pytest, frontend vitest, `validate-config`, `check-types`, `build-web`) run after this documentation update — all green. No `src/` or `tests/` code was touched by the Unbound work, so this mainly re-confirms nothing regressed.
+
+## 20. Safety confirmation (final, covering both passes)
+
+- Router: **untouched** throughout both the Pi-hole and Unbound work.
+- DHCP: **untouched**; Pi-hole DHCP confirmed off (`[dhcp] active = false`).
+- IPv6 router advertisements / RDNSS / DHCPv6: **untouched**.
+- Other LAN clients: **untouched** — every test in both passes targeted the Pi explicitly by IP or `127.0.0.1`/`::1`; the rest of the LAN continues using the router's existing DNS.
+- `/etc/resolv.conf` on the Pi: **unchanged** (still points at the router).
+- Unbound: confirmed **localhost-only** (`127.0.0.1:5335`, `::1:5335`), verified by both listener inspection and an explicit refused-connection test from the LAN address.
+- Firewall: **not added** (out of scope for this task, as instructed).
+- Docker: **not installed** — Unbound and Pi-hole are both native Debian packages.
+- No production hardening, no production timers, no LAN-wide rollout, no Fastweb Seven integration.
+- **The LAN still uses its existing DNS.** This remains a controlled laboratory installation only.
