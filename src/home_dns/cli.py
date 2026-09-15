@@ -137,7 +137,9 @@ def _build_parser() -> argparse.ArgumentParser:
     validate.add_argument("--format", choices=["text", "json"], default="text")
     validate.add_argument("--strict", action="store_true", help="treat warnings as errors")
 
-    serve = commands.add_parser("serve", help="run the dashboard API (development only until C4)")
+    serve = commands.add_parser(
+        "serve", help="run the dashboard API and, with --static-dir, the built frontend"
+    )
     _add_config_arguments(serve)
     serve.add_argument(
         "--static-dir",
@@ -220,7 +222,7 @@ def _build_parser() -> argparse.ArgumentParser:
         "--apply", action="store_true", help="actually send (never automatic; never default)"
     )
 
-    auth = commands.add_parser("auth", help="dashboard users (development only)")
+    auth = commands.add_parser("auth", help="dashboard users")
     auth_actions = auth.add_subparsers(dest="auth_command", required=True)
     set_password = auth_actions.add_parser(
         "set-password", help="create a user, or change its password and role (revokes sessions)"
@@ -534,9 +536,6 @@ def _serve(args: argparse.Namespace, err: TextIO, now: Callable[[], datetime]) -
     except ConfigLoadError as exc:
         print(f"configuration error: {exc}", file=err)
         return EXIT_LOAD_ERROR
-    if config.environment is Environment.PRODUCTION:
-        print("serve is development-only until the Raspberry Pi deployment (phase C4)", file=err)
-        return EXIT_NOT_READY
     try:
         filtering = load_filtering_config(config_dir, now=now())
         storage_config = load_storage_config(config_dir)
@@ -697,12 +696,6 @@ def _auth(args: argparse.Namespace, out: TextIO, err: TextIO, now: Callable[[], 
     except ConfigLoadError as exc:
         print(f"configuration error: {exc}", file=err)
         return EXIT_LOAD_ERROR
-    if config.environment is Environment.PRODUCTION:
-        print(
-            "auth commands are development-only until the Raspberry Pi deployment (phase C4)",
-            file=err,
-        )
-        return EXIT_NOT_READY
     paths = _resolved_paths(config)
     if paths is None:
         print("one or more paths.* settings are unresolved placeholders", file=err)

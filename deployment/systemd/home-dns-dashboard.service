@@ -1,0 +1,53 @@
+# home-dns dashboard — production systemd unit (Phase C4, ADR 0010).
+#
+# Not installed by this repository. Copy to /etc/systemd/system/home-dns-dashboard.service on
+# the Raspberry Pi and follow docs/deployment/raspberry-pi.md. Never run as root: the service
+# user below owns only /opt/home-dns and the persistent data/log/backup/tmp directories it
+# needs — nothing else on the Pi.
+#
+# The Pi-hole app password is never in this file or in config/app/production.yaml — it is read
+# from EnvironmentFile below, a root:home-dns 0640 file outside this unit and outside the repo.
+
+[Unit]
+Description=home-dns dashboard (FastAPI + built frontend, ADR 0010)
+After=network-online.target
+Wants=network-online.target
+# Documentation only — Pi-hole/Unbound are independent services this unit never starts, stops,
+# or depends on for its own startup (the dashboard degrades to "collector can't reach Pi-hole"
+# rather than failing to start, same as the development profile with an unreachable mock).
+Documentation=https://github.com/home-dns/home-dns/blob/main/docs/deployment/raspberry-pi.md
+
+[Service]
+Type=simple
+User=home-dns
+Group=home-dns
+WorkingDirectory=/opt/home-dns/current
+
+EnvironmentFile=/etc/home-dns/dashboard.env
+Environment=HOME_DNS_ENV=production
+Environment=HOME_DNS_CONFIG_DIR=/opt/home-dns/current/config
+
+ExecStart=/opt/home-dns/current/.venv/bin/home-dns serve \
+    --env production \
+    --static-dir /opt/home-dns/current/dashboard/frontend/dist
+
+Restart=on-failure
+RestartSec=5
+
+# Defense in depth on top of "runs as a dedicated non-root user" — none of this narrows what
+# the dashboard itself needs (its own venv/static files under the read-only root, and
+# ReadWritePaths for the SQLite DB, logs, backups, and tmp actually written at runtime).
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/srv/home-dns/data /srv/home-dns/logs /srv/home-dns/backups /srv/home-dns/tmp
+
+# stdout/stderr only — no custom log files (docs/adr/0007-storage-strategy.md's log rotation
+# governs the app's own files under log_dir; this unit adds nothing on top of journald).
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=home-dns-dashboard
+
+[Install]
+WantedBy=multi-user.target

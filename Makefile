@@ -40,8 +40,8 @@ _require-setup:
 	@test -d .venv || { echo "ERROR: Python environment missing. Run 'make setup' first."; exit 2; }
 	@test -d $(WEB_DIR)/node_modules || { echo "ERROR: frontend dependencies missing. Run 'make setup' first."; exit 2; }
 
-# Idempotent: `auth set-password` creates-or-updates and always exits 0. Development only —
-# `serve`/`auth` both refuse to run at all in production (unrelated to this convenience).
+# Idempotent: `auth set-password` creates-or-updates and always exits 0. Only ever invoked
+# here against the development profile — this target itself is dev-only, not `serve`/`auth`.
 _dev-admin: _require-setup
 	@printf '$(DEV_ADMIN_PASSWORD)\n' | $(HOME_DNS) auth set-password --env development \
 		--username $(DEV_ADMIN_USER) --role admin --password-stdin >/dev/null

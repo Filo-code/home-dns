@@ -145,7 +145,7 @@ Revised 2026-09-13, updated as each stage completes. Full detail and exit criter
 | **A: offline software** | A0 foundations · A1 configuration · A2 blocklist pipeline · A3 filtering logic · A4 storage & maintenance · A5 monitoring · A6 Telegram · A7 backend · A8 dashboard · A9 offline integration rehearsal | **No** | ✅ **All of A0–A9 done** (1132 backend + 130 frontend tests, `make check` green) |
 | Dashboard redesign | Night Ops visual/UX redesign on top of A7/A8 (health score, honest admin-action pattern, dark-first theme) | No | ✅ Done — commits `1f0ef32`, `7d41eeb` |
 | **B: pre-deployment audits** | B1 Raspberry Pi audit · B2 Fastweb Seven network audit · B3 architecture re-validation | Read-only | ✅ B1 done ([audit](docs/audits/2026-09-14-b1-raspberry-pi-audit.md)) · ⏳ B2 waiting on Fastweb Seven · ⏳ B3 waiting on B2 |
-| C: Pi deployment, isolated | C1 Pi-hole + Unbound install · C2 real provider adapter · C3 live pipeline/monitoring/alerts · C4 backend + dashboard · C5 backup/restore + rollback rehearsal | Pi only | ⛔ Not authorised |
+| C: Pi deployment, isolated | C1 Pi-hole + Unbound install · C2 real provider adapter · C3 live pipeline/monitoring/alerts · C4 backend + dashboard · C5 backup/restore + rollback rehearsal | Pi only | ⛔ Not authorised — except C4's repo-side artifacts (systemd unit, deployment docs, tests), which are done offline; see [docs/deployment/raspberry-pi.md](docs/deployment/raspberry-pi.md). Live install on the Pi still awaits explicit authorisation |
 | D: network integration | D1 pilot devices · D2 device policies (G6) · D3 IPv6 + bypass · D4 network cutover · D5 soak + final docs | Yes, each change approved | ⛔ Not authorised |
 
 ## Repository layout
@@ -162,7 +162,7 @@ Revised 2026-09-13, updated as each stage completes. Full detail and exit criter
 | `src/home_dns/` | Python package: core, config, providers, storage, API backend, CLI |
 | `dashboard/frontend/` | Dashboard UI (React + Vite, built to static files, served by the backend) |
 | `tests/` | DNS, security, compatibility, blocklist, API, dashboard and integration-rehearsal tests |
-| `deployment/` | systemd units, reverse-proxy config — **empty until Stage C** (native install, no Docker) |
+| `deployment/` | systemd units, reverse-proxy config (native install, no Docker) — `systemd/home-dns-dashboard.service` added (C4); `nginx/` stays empty (ADR 0010) |
 | `data/` | Runtime data placeholder. Real data lives on the Pi and is **not** committed |
 
 Deviations from the original layout in `CLAUDE.md` §8:
@@ -176,7 +176,8 @@ Written and current, reflecting the real, built system (not aspirational):
 [devices.md](docs/devices.md) · [monitoring.md](docs/monitoring.md) · [telegram-alerts.md](docs/telegram-alerts.md) ·
 [maintenance.md](docs/maintenance.md) · [storage.md](docs/storage.md) · [backups.md](docs/backups.md) ·
 [restore.md](docs/restore.md) · [security.md](docs/security.md) · [troubleshooting.md](docs/troubleshooting.md) ·
-[policies.md](docs/policies.md) · [development.md](docs/development.md).
+[policies.md](docs/policies.md) · [development.md](docs/development.md) ·
+[deployment/raspberry-pi.md](docs/deployment/raspberry-pi.md) (C4 — repo-side artifacts done, live Pi install pending authorisation).
 
 **Intentionally still placeholders** — each depends on facts Stage B2/C haven't produced yet, and writing them
 now would mean inventing content (see [docs/troubleshooting.md](docs/troubleshooting.md)'s own note on this):

@@ -118,7 +118,9 @@ def test_validate_config_does_not_write_files(make_config_dir: MakeConfigDir) ->
     assert sorted(p for p in config_dir.parent.rglob("*")) == before
 
 
-def test_serve_refuses_production(repo_config_dir: Path) -> None:
+def test_serve_refuses_production_with_unfilled_placeholders(repo_config_dir: Path) -> None:
+    """C4: `serve` no longer hard-refuses production — the example profile is still full of
+    placeholders, so the existing readiness gate (not a phase gate) is what refuses it."""
     code, _, err = _run(
         "serve",
         "--env",
@@ -127,7 +129,9 @@ def test_serve_refuses_production(repo_config_dir: Path) -> None:
         str(repo_config_dir / "app" / "production.example.yaml"),
     )
     assert code == 1
-    assert "development-only" in err
+    assert "startup refused" in err
+    assert "api.bind_host" in err
+    assert "secrets.pihole_app_password" in err
 
 
 def test_serve_load_error_exits_2(tmp_path: Path) -> None:
@@ -158,12 +162,17 @@ def test_serve_development_starts_uvicorn_on_configured_address(
 
 
 def _set_password(
-    monkeypatch: pytest.MonkeyPatch, config_dir: Path, username: str, role: str, password: str
+    monkeypatch: pytest.MonkeyPatch,
+    config_dir: Path,
+    username: str,
+    role: str,
+    password: str,
+    env: str = "development",
 ) -> tuple[int, str, str]:
     monkeypatch.setattr(cli, "hash_password", _fast_hash)
     monkeypatch.setattr("sys.stdin", io.StringIO(password + "\n"))
     return _run(
-        "auth", "set-password", "--config-dir", str(config_dir),
+        "auth", "set-password", "--env", env, "--config-dir", str(config_dir),
         "--username", username, "--role", role, "--password-stdin",
     )  # fmt: skip
 
@@ -172,6 +181,91 @@ def _fast_hash(password: str) -> str:
     from home_dns.core.auth import ScryptParams, hash_password
 
     return hash_password(password, params=ScryptParams(n=2**10))
+
+
+def _production_profile(tmp_path: Path, *, cookie_secure: bool = False) -> str:
+    """A complete, non-placeholder production profile (C4) — absolute paths under tmp_path so
+    the test never touches a real filesystem location, an RFC 5737 documentation-range
+    dns_provider base_url (never a real address, matching PROD_READY_PROFILE's own convention),
+    and loopback bind_host so the test never actually opens a LAN-facing socket."""
+    return f"""\
+environment: production
+paths:
+  data_dir: {tmp_path / "data"}
+  log_dir: {tmp_path / "logs"}
+  backup_dir: {tmp_path / "backups"}
+  tmp_dir: {tmp_path / "tmp"}
+dns_provider:
+  kind: pihole_v6
+  pihole_v6:
+    base_url: http://192.0.2.53
+api:
+  bind_host: 127.0.0.1
+  port: 8080
+  cookie_secure: {str(cookie_secure).lower()}
+"""
+
+
+def test_serve_production_serves_static_frontend_with_api_route_separation(
+    make_config_dir: MakeConfigDir, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """C4 (ADR 0010): production `serve --static-dir` mounts the built frontend, keeps
+    /api/v1/* routed to the real API (never falling through to the SPA), and authentication
+    works end to end over that same path with the real deployment setting cookie_secure=false
+    (plain HTTP on the trusted LAN)."""
+    from fastapi.testclient import TestClient
+
+    monkeypatch.setenv("HOME_DNS_PIHOLE_APP_PASSWORD", "not-a-real-pihole-password")
+    calls: list[dict[str, Any]] = []
+    apps: list[Any] = []
+    monkeypatch.setattr(cli.uvicorn, "run", lambda app, **kw: (apps.append(app), calls.append(kw)))
+
+    config_dir = make_config_dir(_production_profile(tmp_path), env="production")
+    code, _, err = _set_password(
+        monkeypatch, config_dir, "admin", "admin", "long enough password", env="production"
+    )
+    assert code == 0, err
+
+    static_dir = tmp_path / "dist"
+    (static_dir / "assets").mkdir(parents=True)
+    (static_dir / "index.html").write_text("<html><body>home-dns dashboard</body></html>")
+    (static_dir / "assets" / "app.js").write_text("console.log('built frontend asset');")
+
+    # cli._serve()'s `finally: store.close()` assumes uvicorn.run() blocks until shutdown;
+    # our fake uvicorn.run returns immediately, so without this the store would already be
+    # closed by the time the assertions below issue requests through the captured app.
+    monkeypatch.setattr(cli.DashboardStore, "close", lambda self: None)
+
+    code, _, err = _run(
+        "serve", "--env", "production", "--config-dir", str(config_dir),
+        "--static-dir", str(static_dir),
+    )  # fmt: skip
+    assert code == 0, err
+    assert calls == [{"host": "127.0.0.1", "port": 8080}]
+
+    with TestClient(apps[0]) as client:
+        # Static frontend + SPA fallback (ADR 0010): the root and an unbuilt client-side route
+        # both serve index.html; a real static asset is served from the /assets mount.
+        assert "home-dns dashboard" in client.get("/").text
+        assert "home-dns dashboard" in client.get("/devices/42").text  # client route, no 404
+        assert client.get("/assets/app.js").text == "console.log('built frontend asset');"
+
+        # API/static route separation: an unmatched /api/v1/* path must 404, never fall
+        # through to the SPA's index.html — the risk ADR 0010 calls out explicitly.
+        not_found = client.get("/api/v1/this-route-does-not-exist")
+        assert not_found.status_code == 404
+        assert "home-dns dashboard" not in not_found.text
+
+        # Authentication over the production serving path, with the real deployment setting
+        # (cookie_secure=false — plain HTTP on the trusted LAN, no TLS yet per ADR 0010).
+        login = client.post(
+            "/api/v1/auth/login", json={"username": "admin", "password": "long enough password"}
+        )
+        assert login.status_code == 200
+        assert "hd_session" in client.cookies
+        # /session (not /overview) deliberately: it needs no live Pi-hole call, so this stays
+        # a routing/auth test rather than depending on outbound network the test sandbox blocks.
+        assert client.get("/api/v1/auth/session").status_code == 200
 
 
 def test_serve_refuses_without_an_admin_user(
@@ -256,14 +350,15 @@ def test_auth_interactive_prompt_requires_matching_passwords(
     assert _run(*argv)[0] == 0
 
 
-def test_auth_refuses_production_and_placeholders(
-    repo_config_dir: Path, make_config_dir: MakeConfigDir
-) -> None:
+def test_auth_refuses_placeholders(repo_config_dir: Path, make_config_dir: MakeConfigDir) -> None:
+    """C4: `auth` no longer hard-refuses production — the example profile is still full of
+    placeholders, so the existing paths.* placeholder gate is what refuses it, same as it
+    already does for a development profile with an unfilled placeholder."""
     code, _, err = _run(
         "auth", "list-users", "--env", "production",
         "--profile", str(repo_config_dir / "app" / "production.example.yaml"),
     )  # fmt: skip
-    assert code == 1 and "development-only" in err
+    assert code == 1 and "placeholders" in err
     text = DEV_PROFILE.replace("data_dir: .local/data", 'data_dir: "<<AUDIT:paths.data_dir>>"')
     code, _, err = _run("auth", "list-users", "--config-dir", str(make_config_dir(text)))
     assert code == 1 and "placeholders" in err
