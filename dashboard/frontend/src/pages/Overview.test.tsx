@@ -14,6 +14,7 @@ const EMPTY_HISTORY = jsonResponse(200, {
 });
 
 const EMPTY_INCIDENTS = jsonResponse(200, []);
+const EMPTY_DEVICES = jsonResponse(200, []);
 
 function overview(overrides: Record<string, unknown> = {}) {
   return jsonResponse(200, {
@@ -97,11 +98,12 @@ function config(overrides: Record<string, unknown> = {}) {
   });
 }
 
-/** Overview's effects fire in this order after the session: its own two mount-only fetches
- * (history, incident history) as OverviewProvider's child, then OverviewProvider's own polled
- * overview fetch, then its config fetch — see App.tsx/OverviewContext.tsx for why. */
+/** Overview's effects fire in this order after the session: its own three mount-only fetches
+ * (history, incident history, devices — issued synchronously in that order inside one effect)
+ * as OverviewProvider's child, then OverviewProvider's own polled overview fetch, then its
+ * config fetch — see App.tsx/OverviewContext.tsx for why. */
 function queueOverviewPage(overrides: Record<string, unknown> = {}) {
-  return [EMPTY_HISTORY, EMPTY_INCIDENTS, overview(overrides), config()];
+  return [EMPTY_HISTORY, EMPTY_INCIDENTS, EMPTY_DEVICES, overview(overrides), config()];
 }
 
 const NOOP = () => {};
@@ -130,6 +132,70 @@ describe("Overview", () => {
     expect(screen.getByText("20%")).toBeTruthy();
     expect(screen.getByText(/45\.0 °C/)).toBeTruthy();
     expect(screen.getByText("DNS")).toBeTruthy(); // health ledger row label
+  });
+
+  it("shows the most active devices and a recent-activity summary from real data", async () => {
+    const devices = jsonResponse(200, [
+      {
+        device_id: 1,
+        name: "PC Studio",
+        custom_name: "PC Studio",
+        hostname: "pc-studio.example",
+        mac: "00:00:5e:00:53:10",
+        addresses: ["192.0.2.14"],
+        group_id: "GAMING",
+        first_seen: "2026-09-10T08:00:00Z",
+        last_seen: "2026-09-14T09:59:00Z",
+        last_24h: {
+          total: 500,
+          blocked: 50,
+          allowed: 450,
+          cached: 200,
+          forwarded: 250,
+          block_percentage: 10,
+          cache_hit_ratio: 0.4,
+          latency_p50_ms: 4,
+          latency_p95_ms: 15,
+          blocked_by_source: {},
+        },
+      },
+      {
+        device_id: 2,
+        name: "iPad Cucina",
+        custom_name: null,
+        hostname: "ipad-cucina.example",
+        mac: "00:00:5e:00:53:20",
+        addresses: ["192.0.2.22"],
+        group_id: "DEFAULT",
+        first_seen: "2026-09-14T07:00:00Z",
+        last_seen: "2026-09-14T09:50:00Z",
+        last_24h: {
+          total: 100,
+          blocked: 10,
+          allowed: 90,
+          cached: 40,
+          forwarded: 50,
+          block_percentage: 10,
+          cache_hit_ratio: 0.4,
+          latency_p50_ms: 4,
+          latency_p95_ms: 15,
+          blocked_by_source: {},
+        },
+      },
+    ]);
+    const incidents = jsonResponse(200, [
+      { check_name: "storage", transition: "opened", occurred_at: "2026-09-13T04:00:00Z", severity: "warning" },
+    ]);
+    await renderAuthenticatedPage(<Overview role="admin" onRequestAdminAction={NOOP} />, {
+      responses: [EMPTY_HISTORY, incidents, devices, overview(), config()],
+      withOverview: true,
+    });
+    await waitFor(() => expect(screen.getByRole("heading", { name: "Panoramica" })).toBeTruthy());
+    expect(screen.getByText("PC Studio")).toBeTruthy(); // higher 24h total, listed
+    expect(screen.getByText("iPad Cucina")).toBeTruthy();
+    expect(screen.getByText(/Nuovo dispositivo rilevato: iPad Cucina/)).toBeTruthy();
+    expect(screen.getByText(/Incidente storage aperto/)).toBeTruthy();
+    expect(screen.getByText(/Backup completato/)).toBeTruthy();
   });
 
   it("shows a fallback message instead of crashing when the provider is down", async () => {
@@ -163,7 +229,7 @@ describe("Overview", () => {
 
   it("shows an error state on failure", async () => {
     await renderAuthenticatedPage(<Overview role="admin" onRequestAdminAction={NOOP} />, {
-      responses: [EMPTY_HISTORY, EMPTY_INCIDENTS, { status: 503 }, { status: 503 }],
+      responses: [EMPTY_HISTORY, EMPTY_INCIDENTS, EMPTY_DEVICES, { status: 503 }, { status: 503 }],
       withOverview: true,
     });
     await waitFor(() => screen.getByRole("alert"));

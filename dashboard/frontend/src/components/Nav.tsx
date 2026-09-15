@@ -30,6 +30,18 @@ import {
   IconSystem,
 } from "./icons";
 
+type Theme = "dark" | "light";
+const THEME_STORAGE_KEY = "home-dns:theme";
+
+function readStoredTheme(): Theme | null {
+  try {
+    const value = window.localStorage.getItem(THEME_STORAGE_KEY);
+    return value === "dark" || value === "light" ? value : null;
+  } catch {
+    return null; // a private window or blocked storage just falls back to the OS preference
+  }
+}
+
 const NAV_ITEMS: { to: string; label: string; name: RouteName; icon: typeof IconOverview }[] = [
   { to: overviewPath(), label: "Panoramica", name: "overview", icon: IconOverview },
   { to: devicesPath(), label: "Dispositivi", name: "devices", icon: IconDevices },
@@ -61,6 +73,26 @@ export function Nav({ role }: { role: Role | null }) {
       // per-viewer convenience only; nothing to recover from here
     }
   }, [collapsed]);
+
+  const [theme, setTheme] = useState<Theme | null>(readStoredTheme);
+
+  useEffect(() => {
+    if (theme === null) {
+      delete document.documentElement.dataset.theme;
+      return;
+    }
+    document.documentElement.dataset.theme = theme;
+    try {
+      window.localStorage.setItem(THEME_STORAGE_KEY, theme);
+    } catch {
+      // per-viewer convenience only; the toggle still works for this page load
+    }
+  }, [theme]);
+
+  const systemPrefersDark =
+    typeof window !== "undefined" &&
+    window.matchMedia?.("(prefers-color-scheme: dark)").matches;
+  const effectiveTheme: Theme = theme ?? (systemPrefersDark === false ? "light" : "dark");
 
   async function handleLogout() {
     try {
@@ -124,6 +156,14 @@ export function Nav({ role }: { role: Role | null }) {
       </ul>
       <div className="nav__user">
         <span className="nav__username">{state.username}</span>
+        <button
+          type="button"
+          className="nav__theme-toggle"
+          onClick={() => setTheme(effectiveTheme === "dark" ? "light" : "dark")}
+          aria-label={effectiveTheme === "dark" ? "Passa al tema chiaro" : "Passa al tema scuro"}
+        >
+          {effectiveTheme === "dark" ? "Chiaro" : "Scuro"}
+        </button>
         <button
           type="button"
           className="button button--secondary"

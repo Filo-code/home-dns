@@ -12,7 +12,7 @@ import { LoadingState } from "../components/LoadingState";
 import { StatusBadge } from "../components/StatusBadge";
 import { Table, type Column } from "../components/Table";
 import { usePolling } from "../hooks/usePolling";
-import { formatDateTime, formatNumber } from "../lib/format";
+import { formatDateTime, formatNumber, formatRelative } from "../lib/format";
 import { incidentLabelIt, severityFromIncident } from "../lib/severity";
 
 const POLL_MS = 120_000;
@@ -54,6 +54,11 @@ export function Security() {
       key: "blocked",
       header: "Bloccate (24h)",
       render: (source) => formatNumber(blockedBySource[source.id] ?? 0),
+    },
+    {
+      key: "freshness",
+      header: "Ultimo aggiornamento",
+      render: (source) => formatRelative(source.last_activated_at),
     },
   ];
 

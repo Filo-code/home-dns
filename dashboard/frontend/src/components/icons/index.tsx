@@ -151,6 +151,23 @@ export function IconMenu(props: IconProps) {
   );
 }
 
+export function IconWarn(props: IconProps) {
+  return (
+    <svg {...base(props)}>
+      <path d="M12 3l10 18H2L12 3z" />
+      <path d="M12 10v4M12 17h.01" />
+    </svg>
+  );
+}
+
+export function IconCheck(props: IconProps) {
+  return (
+    <svg {...base(props)}>
+      <path d="M20 6L9 17l-5-5" />
+    </svg>
+  );
+}
+
 export function IconX(props: IconProps) {
   return (
     <svg {...base(props)}>

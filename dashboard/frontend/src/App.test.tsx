@@ -95,6 +95,7 @@ describe("App", () => {
       jsonResponse(200, { username: "anna", role: "admin", csrf_token: "t" }),
       EMPTY_HISTORY,
       EMPTY_INCIDENTS,
+      EMPTY_DEVICES,
       EMPTY_OVERVIEW,
       EMPTY_CONFIG,
     ]);

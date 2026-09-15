@@ -509,6 +509,17 @@ select {
   font-size: 0.75rem;
 }
 
+.nav__theme-toggle {
+  height: 28px;
+  padding: 0 var(--space-2);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+  cursor: pointer;
+}
+
 .nav__collapse-toggle {
   display: none; /* shown only on desktop, see responsive.css */
   width: 26px;
@@ -993,19 +1004,26 @@ select {
   height: 20px;
   border-radius: 999px;
   flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .incident-history__icon--ok {
   background: var(--color-ok-bg);
+  color: var(--color-ok);
 }
 .incident-history__icon--warning {
   background: var(--color-warning-bg);
+  color: var(--color-warning);
 }
 .incident-history__icon--critical {
   background: var(--color-critical-bg);
+  color: var(--color-critical);
 }
 .incident-history__icon--info {
   background: var(--color-unknown-bg);
+  color: var(--color-unknown);
 }
 
 .incident-history__text {
@@ -1018,4 +1036,59 @@ select {
   color: var(--color-text-muted);
   font-family: var(--font-mono);
   white-space: nowrap;
+}
+
+/* -------------------------------------------------------------------- devices most active */
+
+.device-activity {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.device-activity__row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2) 0;
+  border-bottom: 1px solid var(--color-bg);
+}
+
+.device-activity__row:last-child {
+  border-bottom: none;
+}
+
+.device-activity__name {
+  flex: 0 0 auto;
+  max-width: 40%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--color-text);
+  text-decoration: none;
+  font-size: var(--font-size-sm);
+  font-weight: 500;
+}
+
+.device-activity__bar-track {
+  flex: 1;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--color-bg);
+  overflow: hidden;
+}
+
+.device-activity__bar-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--color-accent-from), var(--color-accent-to));
+}
+
+.device-activity__count {
+  flex: none;
+  font-family: var(--font-mono);
+  font-size: var(--font-size-sm);
+  color: var(--color-text-muted);
+  min-width: 3.5em;
+  text-align: right;
 }

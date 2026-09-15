@@ -16,6 +16,7 @@ const CONFIG = jsonResponse(200, {
       name: "HaGeZi Multi PRO",
       categories: ["advertising", "tracking", "malware"],
       update_interval_hours: 24,
+      last_activated_at: "2026-09-14T00:00:00Z",
     },
   ],
   storage: { thresholds_percent: {}, retention: {} },
@@ -59,6 +60,31 @@ describe("Security", () => {
     expect(screen.getByText("advertising, tracking, malware")).toBeTruthy();
     expect(screen.getByText("30")).toBeTruthy(); // the one per-source count, not per-category
     expect(screen.getByText("Nessun incidente attivo.")).toBeTruthy();
+    // Per-source freshness column: a real timestamp renders as relative time, never "mai".
+    expect(screen.getByText(/fa$/)).toBeTruthy();
+  });
+
+  it("shows 'mai' for a source that has never been activated", async () => {
+    await renderAuthenticatedPage(<Security />, {
+      responses: [
+        jsonResponse(200, {
+          ...(CONFIG.body as Record<string, unknown>),
+          blocklist_sources: [
+            {
+              id: "hagezi-tif-mini",
+              name: "HaGeZi TIF Mini",
+              categories: ["malware"],
+              update_interval_hours: 24,
+              last_activated_at: null,
+            },
+          ],
+        }),
+        OVERVIEW,
+        jsonResponse(200, []),
+      ],
+    });
+    await waitFor(() => expect(screen.getByText("HaGeZi TIF Mini")).toBeTruthy());
+    expect(screen.getByText("mai")).toBeTruthy();
   });
 
   it("shows security incidents when present", async () => {

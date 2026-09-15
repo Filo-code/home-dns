@@ -1,17 +1,19 @@
 import { useEffect, useState } from "react";
 
 import { useApiClient } from "../api/useApiClient";
-import type { HistoryResponse, IncidentEventView, Role } from "../api/types";
+import type { DeviceView, HistoryResponse, IncidentEventView, Role } from "../api/types";
 import { Card, StatRow } from "../components/Card";
 import { AreaChart } from "../components/charts/AreaChart";
 import { BarGauge } from "../components/charts/BarGauge";
 import { HeartbeatStrip } from "../components/charts/HeartbeatStrip";
+import { DevicesMostActive } from "../components/DevicesMostActive";
 import { ErrorState } from "../components/ErrorState";
 import { HealthLedger } from "../components/HealthLedger";
 import { HealthRing } from "../components/HealthRing";
 import { IncidentHistoryList } from "../components/IncidentHistoryList";
 import { LoadingState } from "../components/LoadingState";
 import { QuickActions, type AdminAction } from "../components/QuickActions";
+import { RecentActivity } from "../components/RecentActivity";
 import type { Severity } from "../components/StatusBadge";
 import { useOverview } from "../context/OverviewContext";
 import {
@@ -46,6 +48,7 @@ export function Overview({
   const [history, setHistory] = useState<HistoryResponse | null>(null);
   const [historyError, setHistoryError] = useState<unknown>(null);
   const [incidents, setIncidents] = useState<IncidentEventView[]>([]);
+  const [devices, setDevices] = useState<DeviceView[]>([]);
 
   useEffect(() => {
     // On page load only — not continuously (docs/specs/a8-frontend-dashboard.md §13).
@@ -57,6 +60,11 @@ export function Overview({
     })
       .then(setIncidents)
       .catch(() => setIncidents([]));
+    // Shared by the "Dispositivi più attivi" and "Attività recente" cards below — one
+    // request, not fetched twice.
+    get<DeviceView[]>("/api/v1/devices")
+      .then(setDevices)
+      .catch(() => setDevices([]));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -185,6 +193,21 @@ export function Overview({
         <Card title="Cronologia incidenti">
           <HeartbeatStrip events={incidents} days={30} />
           <IncidentHistoryList events={incidents} limit={3} compact />
+        </Card>
+      </div>
+
+      <div className="card-grid card-grid--system">
+        <Card title="Dispositivi più attivi">
+          <DevicesMostActive devices={devices} />
+        </Card>
+
+        <Card title="Attività recente">
+          <RecentActivity
+            lastBackupAt={data.last_backup_at}
+            lastBlocklistUpdateAt={data.last_blocklist_update_at}
+            incidents={incidents}
+            devices={devices}
+          />
         </Card>
       </div>
     </div>
