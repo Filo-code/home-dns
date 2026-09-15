@@ -2,7 +2,7 @@ import { cleanup, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { renderAuthenticatedPage } from "../test-utils/renderAuthenticated";
-import { jsonResponse } from "../test-utils/mockFetch";
+import { jsonResponse, pendingResponse } from "../test-utils/mockFetch";
 import { Overview } from "./Overview";
 
 const EMPTY_HISTORY = jsonResponse(200, {
@@ -115,8 +115,21 @@ afterEach(() => {
 
 describe("Overview", () => {
   it("shows the loading state before data arrives", async () => {
+    // Overview.tsx issues several mount-only fetches (history, incident history, devices) as
+    // OverviewProvider's child, then OverviewProvider's own (overview, config) — see
+    // queueOverviewPage's doc comment above. An empty response queue used to make each of
+    // those reject near-instantly (jsdom has no real network latency), which could race ahead
+    // of this assertion and flip the page to its error state before we ever observed loading —
+    // flaky ~4/5 runs. Queuing enough never-resolving responses removes the race entirely: no
+    // fetch ever settles during this test, so the page provably cannot leave the loading state.
     await renderAuthenticatedPage(<Overview role="admin" onRequestAdminAction={NOOP} />, {
-      responses: [],
+      responses: [
+        pendingResponse(),
+        pendingResponse(),
+        pendingResponse(),
+        pendingResponse(),
+        pendingResponse(),
+      ],
       withOverview: true,
     });
     expect(screen.getByText("Caricamento…")).toBeTruthy();
