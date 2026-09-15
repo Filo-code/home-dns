@@ -167,6 +167,30 @@ restart_budget:
 """,
 }
 
+# Minimal valid anomaly-detection configuration (foundation phase). Same shape as the repo's
+# own file — disabled by default, same as the shipped config.
+ANOMALY_FILES: dict[str, str] = {
+    "anomaly-detection__anomaly-detection.yaml": """\
+schema_version: 1
+enabled: false
+window_minutes: 30
+max_entries_per_device: 2000
+retention_days: 30
+default:
+  nxdomain_burst_count: 20
+  nxdomain_burst_window_minutes: 5
+  query_rate_spike_multiplier: 4.0
+  query_rate_baseline_minutes: 10
+  beaconing_min_repeats: 6
+  beaconing_interval_tolerance_seconds: 5
+  entropy_threshold: 3.5
+  entropy_min_label_length: 12
+  failure_burst_count: 15
+  failure_burst_window_minutes: 5
+overrides: {}
+""",
+}
+
 # Minimal valid Telegram alerting configuration (A6). Same shape as the repo's own file.
 TELEGRAM_FILES: dict[str, str] = {
     "telegram__alerts.yaml": """\
@@ -190,7 +214,8 @@ def make_config_dir(tmp_path: Path) -> Callable[..., Path]:
     """Create <tmp>/config with app/<env>.yaml, valid filtering/storage/monitoring/telegram sets
     and optional extras.
 
-    Pass ``filtering=False`` / ``storage=False`` / ``monitoring=False`` / ``telegram=False`` to
+    Pass ``filtering=False`` / ``storage=False`` / ``monitoring=False`` / ``telegram=False`` /
+    ``anomaly=False`` to
     omit those default file sets; extra files override defaults of any set.
     """
 
@@ -202,6 +227,7 @@ def make_config_dir(tmp_path: Path) -> Callable[..., Path]:
         storage: bool = True,
         monitoring: bool = True,
         telegram: bool = True,
+        anomaly: bool = True,
         **extra_files: str,
     ) -> Path:
         config_dir = tmp_path / "config"
@@ -212,6 +238,7 @@ def make_config_dir(tmp_path: Path) -> Callable[..., Path]:
             **(STORAGE_FILES if storage else {}),
             **(MONITORING_FILES if monitoring else {}),
             **(TELEGRAM_FILES if telegram else {}),
+            **(ANOMALY_FILES if anomaly else {}),
             **extra_files,
         }
         for relative, text in files.items():

@@ -124,6 +124,10 @@ class QueryLogEntry(_Model):
     outcome: QueryOutcome
     blocked_by: str | None = None
     latency_ms: float | None = Field(default=None, ge=0)
+    # Provider-reported reply kind (e.g. "NXDOMAIN", "SERVFAIL", "NODATA"), when the provider
+    # exposes it — used only by the optional anomaly-detection layer (core/anomaly.py). None
+    # when a provider (e.g. MockDnsProvider) doesn't distinguish reply kinds.
+    reply_type: str | None = None
 
     _aware = field_validator("time")(_require_aware)
 

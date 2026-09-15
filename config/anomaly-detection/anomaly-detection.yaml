@@ -1,0 +1,85 @@
+# DNS anomaly detection (foundation phase). See docs/anomaly-detection/architecture.md and
+# docs/anomaly-detection/signals.md for what each signal means and why these numbers were
+# picked as a starting point. Purely observational: this layer never blocks a query and never
+# touches Pi-hole configuration.
+#
+# `enabled: false` by default — this is new, unreviewed against real traffic, and must be
+# turned on deliberately after the owner has looked at the thresholds below.
+schema_version: 1
+enabled: false
+
+# How much recent per-device query history the analyzer keeps in memory (never written to
+# disk as raw queries — only derived anomaly events are persisted). Longer windows catch
+# slower beaconing but use a little more RAM per device.
+window_minutes: 30
+# Hard cap per device, regardless of window_minutes, so a single very chatty device can never
+# grow memory usage unboundedly.
+max_entries_per_device: 2000
+# How long persisted anomaly *events* (not raw queries) are kept before cleanup.
+retention_days: 30
+
+# Medium sensitivity: used by DEFAULT and any group without an explicit override below
+# (this is what MOBILE uses too, per the design brief).
+default:
+  nxdomain_burst_count: 20
+  nxdomain_burst_window_minutes: 5
+  query_rate_spike_multiplier: 4.0
+  query_rate_baseline_minutes: 10
+  beaconing_min_repeats: 6
+  beaconing_interval_tolerance_seconds: 5
+  entropy_threshold: 3.5
+  entropy_min_label_length: 12
+  failure_burst_count: 15
+  failure_burst_window_minutes: 5
+
+overrides:
+  # PC/GAMING: more permissive — higher counts and multipliers needed to trigger, since these
+  # devices legitimately generate more varied, bursty traffic (downloads, matchmaking, updates).
+  PC:
+    nxdomain_burst_count: 40
+    nxdomain_burst_window_minutes: 5
+    query_rate_spike_multiplier: 6.0
+    query_rate_baseline_minutes: 10
+    beaconing_min_repeats: 10
+    beaconing_interval_tolerance_seconds: 3
+    entropy_threshold: 4.0
+    entropy_min_label_length: 14
+    failure_burst_count: 30
+    failure_burst_window_minutes: 5
+  GAMING:
+    nxdomain_burst_count: 40
+    nxdomain_burst_window_minutes: 5
+    query_rate_spike_multiplier: 6.0
+    query_rate_baseline_minutes: 10
+    beaconing_min_repeats: 12
+    beaconing_interval_tolerance_seconds: 3
+    entropy_threshold: 4.0
+    entropy_min_label_length: 14
+    failure_burst_count: 30
+    failure_burst_window_minutes: 5
+
+  # SMART-TV/XBOX: conservative — deliberately hard to trigger. These devices run frequent,
+  # regular telemetry/update/heartbeat traffic that must not be mistaken for beaconing, and
+  # often query CDN/hash-like hostnames that must not be mistaken for high-entropy domains.
+  SMART-TV:
+    nxdomain_burst_count: 30
+    nxdomain_burst_window_minutes: 5
+    query_rate_spike_multiplier: 8.0
+    query_rate_baseline_minutes: 15
+    beaconing_min_repeats: 20
+    beaconing_interval_tolerance_seconds: 1
+    entropy_threshold: 4.2
+    entropy_min_label_length: 16
+    failure_burst_count: 25
+    failure_burst_window_minutes: 5
+  XBOX:
+    nxdomain_burst_count: 30
+    nxdomain_burst_window_minutes: 5
+    query_rate_spike_multiplier: 8.0
+    query_rate_baseline_minutes: 15
+    beaconing_min_repeats: 20
+    beaconing_interval_tolerance_seconds: 1
+    entropy_threshold: 4.2
+    entropy_min_label_length: 16
+    failure_burst_count: 25
+    failure_burst_window_minutes: 5

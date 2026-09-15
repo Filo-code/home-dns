@@ -1,0 +1,33 @@
+# VPN foundation configuration — FUTURE, NOT DEPLOYED. See docs/vpn/architecture.md.
+#
+# `enabled: false` here does not just mean "the VPN is off" — no code in this repository reads
+# this file at runtime at all yet. This is schema validation only, so the shape is agreed and
+# safe before any real implementation touches WireGuard, routing, or the firewall.
+#
+# subnet/server_address/dns_address below are PLACEHOLDERS in RFC 5737 documentation address
+# space (192.0.2.0/24, TEST-NET-1) — not a real address plan. This repository's own convention
+# (tests/architecture/test_no_real_network_values.py) keeps real network identifiers out of
+# src/ and config/ entirely; the real LAN subnet to check for a routing conflict, and a real
+# VPN subnet choice (see docs/vpn/architecture.md for the suggested candidate), live in
+# docs/vpn/fastweb-seven-prerequisites.md instead. Before any real deployment, replace these
+# placeholders and run config/vpn.py's check_no_subnet_conflicts() against that real value.
+#
+# Do NOT put a real private key anywhere in this file, ever. `clients[].public_key` is the only
+# key material that belongs here, and even that stays empty until a real deployment decision.
+schema_version: 1
+vpn:
+  enabled: false
+  interface_name: wg0
+  subnet: "192.0.2.0/24"
+  server_address: "192.0.2.1"
+  # DNS-only design (docs/vpn/architecture.md): VPN clients reach Pi-hole at the Pi's own
+  # address on the VPN interface, not a LAN hop — no LAN routing is required for DNS alone.
+  dns_address: "192.0.2.1"
+  # Empty on purpose: LAN access is an explicit future choice per client (see architecture.md's
+  # "DNS-only vs LAN-access vs full-tunnel" split), not a default.
+  allowed_networks: []
+  full_tunnel: false
+  # No clients yet. A real deployment adds named peers here with only their PUBLIC key —
+  # private keys are generated and kept on each client device, never committed (see
+  # docs/vpn/architecture.md's key-handling section).
+  clients: []

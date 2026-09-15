@@ -25,6 +25,7 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
 
+from home_dns.core.anomaly import Anomaly, AnomalySeverity
 from home_dns.core.auth import Role
 from home_dns.core.metrics import Resolution, Rollup
 from home_dns.core.monitoring import Severity
@@ -100,6 +101,23 @@ MIGRATIONS: tuple[Migration, ...] = (
         CREATE INDEX incident_events_check_time ON incident_events(check_name, occurred_at);
         """,
     ),
+    Migration(
+        3,
+        "anomalies",
+        """
+        CREATE TABLE anomalies (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            device_id INTEGER NOT NULL REFERENCES devices(device_id) ON DELETE CASCADE,
+            detected_at INTEGER NOT NULL,
+            severity TEXT NOT NULL CHECK (severity IN ('low', 'medium', 'high')),
+            score INTEGER NOT NULL,
+            signals TEXT NOT NULL,
+            reason TEXT NOT NULL
+        );
+        CREATE INDEX anomalies_device_time ON anomalies(device_id, detected_at);
+        CREATE INDEX anomalies_time ON anomalies(detected_at);
+        """,
+    ),
 )
 
 
@@ -163,12 +181,28 @@ class IncidentEventRecord:
 
 
 @dataclass(frozen=True)
+class AnomalyRecord:
+    """One persisted, already-evaluated anomaly event — never a raw query. See
+    core/anomaly.py's ``Anomaly`` for the pure model this is the storage twin of."""
+
+    id: int
+    device_id: int
+    detected_at: datetime
+    severity: AnomalySeverity
+    score: int
+    signals: tuple[str, ...]
+    reason: str
+
+
+@dataclass(frozen=True)
 class FlushBatch:
     watermark: datetime
     devices: tuple[DeviceUpsert, ...] = ()
     addresses: tuple[tuple[str, int, datetime], ...] = ()  # (address, device_id, last_seen)
     rollups: tuple[tuple[Resolution, datetime, int, Rollup], ...] = ()
     retention_cutoffs: dict[Resolution, datetime] = field(default_factory=dict)
+    anomalies: tuple[Anomaly, ...] = ()
+    anomaly_retention_cutoff: datetime | None = None
 
 
 class DashboardStore:
@@ -375,6 +409,24 @@ class DashboardStore:
                     "DELETE FROM device_addresses WHERE last_seen < ?",
                     (_epoch(batch.retention_cutoffs[Resolution.DAY]),),
                 )
+            for anomaly in batch.anomalies:
+                conn.execute(
+                    "INSERT INTO anomalies (device_id, detected_at, severity, score, signals, "
+                    "reason) VALUES (?, ?, ?, ?, ?, ?)",
+                    (
+                        anomaly.device_id,
+                        _epoch(anomaly.detected_at),
+                        anomaly.severity,
+                        anomaly.score,
+                        json.dumps([s.value for s in anomaly.signals]),
+                        anomaly.reason,
+                    ),
+                )
+            if batch.anomaly_retention_cutoff is not None:
+                conn.execute(
+                    "DELETE FROM anomalies WHERE detected_at < ?",
+                    (_epoch(batch.anomaly_retention_cutoff),),
+                )
             conn.execute(
                 "INSERT INTO collector_state (id, watermark) VALUES (1, ?) "
                 "ON CONFLICT(id) DO UPDATE SET watermark = excluded.watermark",
@@ -443,6 +495,44 @@ class DashboardStore:
             )
             for row in rows
         ]
+
+    # ----------------------------------------------------------------------------- anomalies
+
+    def list_anomalies(
+        self,
+        *,
+        since: datetime | None = None,
+        device_id: int | None = None,
+        limit: int = 100,
+    ) -> list[AnomalyRecord]:
+        """Most recent first. Security/anomaly events, kept deliberately separate from
+        ``incident_events`` (infrastructure health) — see core/anomaly.py's module docstring."""
+        sql = "SELECT * FROM anomalies WHERE 1 = 1"
+        params: list[object] = []
+        if since is not None:
+            sql += " AND detected_at >= ?"
+            params.append(_epoch(since))
+        if device_id is not None:
+            sql += " AND device_id = ?"
+            params.append(device_id)
+        rows = self._read(sql + " ORDER BY detected_at DESC, id DESC LIMIT ?", (*params, limit))
+        return [_anomaly_record(row) for row in rows]
+
+    def get_anomaly(self, anomaly_id: int) -> AnomalyRecord | None:
+        rows = self._read("SELECT * FROM anomalies WHERE id = ?", (anomaly_id,))
+        return _anomaly_record(rows[0]) if rows else None
+
+
+def _anomaly_record(row: sqlite3.Row) -> AnomalyRecord:
+    return AnomalyRecord(
+        id=row["id"],
+        device_id=row["device_id"],
+        detected_at=_dt(row["detected_at"]),
+        severity=row["severity"],
+        score=row["score"],
+        signals=tuple(json.loads(row["signals"])),
+        reason=row["reason"],
+    )
 
 
 def _rollup(row: sqlite3.Row) -> Rollup:

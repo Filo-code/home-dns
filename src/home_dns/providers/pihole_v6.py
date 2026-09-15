@@ -451,6 +451,7 @@ class PiholeV6Provider(DnsProvider):
             raise MalformedResponseError("pihole query entry has a non-object 'reply'")
         latency = reply.get("time")
         latency_ms = round(float(latency) * 1000, 3) if isinstance(latency, int | float) else None
+        reply_type = reply.get("type")
         return QueryLogEntry(
             id=int(item["id"]),
             time=datetime.fromtimestamp(float(item["time"]), UTC),
@@ -460,6 +461,7 @@ class PiholeV6Provider(DnsProvider):
             outcome=outcome,
             blocked_by=blocked_by,
             latency_ms=latency_ms,
+            reply_type=str(reply_type) if reply_type else None,
         )
 
     def _source_for_list_id(self, list_id: int) -> str:

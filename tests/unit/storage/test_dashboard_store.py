@@ -3,6 +3,7 @@ from pathlib import Path
 
 import pytest
 
+from home_dns.core.anomaly import Anomaly, AnomalySignal
 from home_dns.core.auth import Role
 from home_dns.core.metrics import Resolution, Rollup
 from home_dns.storage.dashboard import DashboardStore, DeviceUpsert, FlushBatch
@@ -190,3 +191,72 @@ def test_incident_events_round_trip_most_recent_first(store: DashboardStore) -> 
 
     other_check = store.list_incident_events(check_name="dns_down")
     assert other_check == []
+
+
+def _anomaly(device_id: int, detected_at: datetime, score: int = 30) -> Anomaly:
+    return Anomaly(
+        device_id=device_id,
+        detected_at=detected_at,
+        signals=(AnomalySignal.NXDOMAIN_BURST,),
+        score=score,
+        severity="medium",
+        reason="NXDOMAIN rate significantly exceed this device's recent baseline",
+    )
+
+
+def test_anomalies_round_trip_most_recent_first(store: DashboardStore) -> None:
+    store.flush(FlushBatch(watermark=T0, devices=(_device(1),)))
+    store.flush(
+        FlushBatch(
+            watermark=T0,
+            anomalies=(
+                _anomaly(1, T0),
+                _anomaly(1, T0 + timedelta(minutes=5), score=60),
+            ),
+        )
+    )
+    anomalies = store.list_anomalies()
+    assert [a.score for a in anomalies] == [60, 30]
+    assert anomalies[0].signals == ("nxdomain_burst",)
+    assert anomalies[0].severity == "medium"
+    assert anomalies[0].device_id == 1
+
+
+def test_anomalies_filtered_by_device_and_since(store: DashboardStore) -> None:
+    store.flush(FlushBatch(watermark=T0, devices=(_device(1), _device(2, mac=None))))
+    store.flush(
+        FlushBatch(
+            watermark=T0,
+            anomalies=(_anomaly(1, T0), _anomaly(2, T0 + timedelta(minutes=1))),
+        )
+    )
+    only_device_1 = store.list_anomalies(device_id=1)
+    assert [a.device_id for a in only_device_1] == [1]
+
+    only_recent = store.list_anomalies(since=T0 + timedelta(seconds=30))
+    assert [a.device_id for a in only_recent] == [2]
+
+
+def test_get_anomaly_by_id(store: DashboardStore) -> None:
+    store.flush(FlushBatch(watermark=T0, devices=(_device(1),)))
+    store.flush(FlushBatch(watermark=T0, anomalies=(_anomaly(1, T0),)))
+    stored_id = store.list_anomalies()[0].id
+    fetched = store.get_anomaly(stored_id)
+    assert fetched is not None and fetched.device_id == 1
+    assert store.get_anomaly(stored_id + 999) is None
+
+
+def test_anomaly_retention_cutoff_deletes_old_events(store: DashboardStore) -> None:
+    store.flush(FlushBatch(watermark=T0, devices=(_device(1),)))
+    store.flush(
+        FlushBatch(
+            watermark=T0,
+            anomalies=(_anomaly(1, T0), _anomaly(1, T0 + timedelta(days=40))),
+        )
+    )
+    assert len(store.list_anomalies()) == 2
+
+    store.flush(FlushBatch(watermark=T0, anomaly_retention_cutoff=T0 + timedelta(days=30)))
+    remaining = store.list_anomalies()
+    assert len(remaining) == 1
+    assert remaining[0].detected_at == T0 + timedelta(days=40)

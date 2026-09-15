@@ -1038,6 +1038,42 @@ select {
   white-space: nowrap;
 }
 
+/* ---------------------------------------------------------------------------- anomaly list */
+
+.anomaly-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.anomaly-list__row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2) 0;
+  border-bottom: 1px solid var(--color-bg);
+}
+
+.anomaly-list__row:last-child {
+  border-bottom: none;
+}
+
+.anomaly-list__text {
+  flex: 1;
+  font-size: var(--font-size-sm);
+}
+
+.anomaly-list__signals {
+  color: var(--color-text-muted);
+}
+
+.anomaly-list__time {
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+  font-family: var(--font-mono);
+  white-space: nowrap;
+}
+
 /* -------------------------------------------------------------------- devices most active */
 
 .device-activity {

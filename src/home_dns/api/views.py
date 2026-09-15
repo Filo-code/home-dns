@@ -13,6 +13,7 @@ from pydantic import AwareDatetime, BaseModel, Field
 
 from home_dns.api.auth import AdminSession, Context, Session
 from home_dns.config.settings import AppSettings
+from home_dns.core.anomaly import AnomalySeverity
 from home_dns.core.filtering import FilteringConfig
 from home_dns.core.metrics import Resolution, Rollup, bucket_end, bucket_start
 from home_dns.core.models import (
@@ -26,7 +27,7 @@ from home_dns.core.models import (
 from home_dns.core.monitoring import IncidentState, Severity
 from home_dns.core.storage import DiskUsage, RetentionPolicy, StorageThresholds
 from home_dns.providers.base import DnsProvider, ProviderError
-from home_dns.storage.dashboard import DeviceRecord
+from home_dns.storage.dashboard import AnomalyRecord, DeviceRecord
 
 router = APIRouter(prefix="/api/v1", tags=["dashboard"])
 
@@ -177,6 +178,21 @@ class IncidentEventView(BaseModel):
     transition: str
     occurred_at: datetime
     severity: Severity | None
+
+
+class AnomalyView(BaseModel):
+    """A persisted, already-evaluated DNS anomaly event — deliberately separate from
+    ``IncidentEventView`` (infrastructure health). See core/anomaly.py's module docstring:
+    ``score`` is a deterministic, explainable sum of named signal weights, never a
+    machine-learning probability, and ``reason`` never claims certainty."""
+
+    id: int
+    device_id: int
+    detected_at: datetime
+    severity: AnomalySeverity
+    score: int
+    signals: list[str]
+    reason: str
 
 
 # ------------------------------------------------------------------------------ helpers
@@ -415,6 +431,49 @@ def incident_history(
             severity=e.severity,
         )
         for e in context.store.list_incident_events(since=since, limit=limit)
+    ]
+
+
+def _anomaly_view(record: AnomalyRecord) -> AnomalyView:
+    return AnomalyView(
+        id=record.id,
+        device_id=record.device_id,
+        detected_at=record.detected_at,
+        severity=record.severity,
+        score=record.score,
+        signals=list(record.signals),
+        reason=record.reason,
+    )
+
+
+@router.get("/anomalies", response_model=list[AnomalyView])
+def anomalies(
+    _: Session,
+    context: Context,
+    limit: Annotated[int, Query(ge=1, le=200)] = 50,
+    since: AwareDatetime | None = None,
+) -> list[AnomalyView]:
+    return [_anomaly_view(a) for a in context.store.list_anomalies(since=since, limit=limit)]
+
+
+@router.get("/anomalies/{anomaly_id}", response_model=AnomalyView)
+def get_anomaly(anomaly_id: int, _: Session, context: Context) -> AnomalyView:
+    record = context.store.get_anomaly(anomaly_id)
+    if record is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "anomaly not found")
+    return _anomaly_view(record)
+
+
+@router.get("/devices/{device_id}/anomalies", response_model=list[AnomalyView])
+def device_anomalies(
+    device_id: int,
+    _: Session,
+    context: Context,
+    limit: Annotated[int, Query(ge=1, le=200)] = 50,
+) -> list[AnomalyView]:
+    _device_or_404(context, device_id)
+    return [
+        _anomaly_view(a) for a in context.store.list_anomalies(device_id=device_id, limit=limit)
     ]
 
 

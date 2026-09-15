@@ -1,10 +1,12 @@
 import { useApiClient } from "../api/useApiClient";
 import type {
+  AnomalyView,
   BlocklistSourceView,
   ConfigView,
   IncidentView,
   OverviewResponse,
 } from "../api/types";
+import { AnomalyList } from "../components/AnomalyList";
 import { Card, StatRow } from "../components/Card";
 import { EmptyState } from "../components/EmptyState";
 import { ErrorState } from "../components/ErrorState";
@@ -25,6 +27,10 @@ export function Security() {
     POLL_MS,
   );
   const alerts = usePolling<IncidentView[]>(() => get<IncidentView[]>("/api/v1/alerts"), POLL_MS);
+  const anomalies = usePolling<AnomalyView[]>(
+    () => get<AnomalyView[]>("/api/v1/anomalies"),
+    POLL_MS,
+  );
 
   if ((config.loading && !config.data) || (overview.loading && !overview.data)) {
     return <LoadingState />;
@@ -129,6 +135,16 @@ export function Security() {
             rowKey={(incident) => incident.check_name}
             caption="Incidenti di sicurezza"
           />
+        )}
+      </Card>
+
+      <Card title="Anomalie DNS (rilevamento passivo)" className="card--wide">
+        {anomalies.loading && !anomalies.data ? (
+          <LoadingState />
+        ) : anomalies.error && !anomalies.data ? (
+          <ErrorState error={anomalies.error} onRetry={anomalies.refresh} />
+        ) : !anomalies.data ? null : (
+          <AnomalyList anomalies={anomalies.data} limit={20} />
         )}
       </Card>
     </div>

@@ -16,6 +16,7 @@ from home_dns.config.filtering import load_filtering_config
 from home_dns.config.loader import load_config
 from home_dns.config.settings import Environment
 from home_dns.config.storage import load_storage_config
+from home_dns.core.anomaly import Anomaly, AnomalySignal
 from home_dns.core.auth import Role, ScryptParams, hash_password
 from home_dns.core.models import QueryFilter, QueryPage
 from home_dns.core.monitoring import Incident, IncidentState
@@ -126,6 +127,8 @@ VIEWER_ROUTES = [
     "/api/v1/alerts",
     "/api/v1/incidents/history",
     "/api/v1/config",
+    "/api/v1/anomalies",
+    "/api/v1/devices/1/anomalies",
 ]
 ADMIN_ROUTES = ["/api/v1/devices/1/activity", "/api/v1/queries"]
 
@@ -538,6 +541,61 @@ def test_incident_history_lists_persisted_transitions(env: Env) -> None:
 
     limited = client.get("/api/v1/incidents/history", params={"limit": 1}).json()
     assert len(limited) == 1
+
+
+def test_anomalies_list_is_empty_with_no_detections(env: Env) -> None:
+    client, _ = env.login("viewer", VIEWER_PW)
+    assert client.get("/api/v1/anomalies").json() == []
+
+
+def test_anomalies_round_trip_through_the_api(env: Env) -> None:
+    from home_dns.storage.dashboard import DeviceUpsert, FlushBatch
+
+    env.store.flush(
+        FlushBatch(watermark=T0, devices=(DeviceUpsert(1, None, "tv-01.example", T0, T0),))
+    )
+    env.store.flush(
+        FlushBatch(
+            watermark=T0,
+            anomalies=(
+                Anomaly(
+                    device_id=1,
+                    detected_at=T0,
+                    signals=(AnomalySignal.NXDOMAIN_BURST, AnomalySignal.BEACONING),
+                    score=50,
+                    severity="medium",
+                    reason="NXDOMAIN rate and regular repeated-domain interval significantly "
+                    "exceed this device's recent baseline",
+                ),
+            ),
+        )
+    )
+    client, _ = env.login("viewer", VIEWER_PW)
+
+    listed = client.get("/api/v1/anomalies").json()
+    assert len(listed) == 1
+    entry = listed[0]
+    assert entry["device_id"] == 1
+    assert entry["severity"] == "medium"
+    assert entry["score"] == 50
+    assert set(entry["signals"]) == {"nxdomain_burst", "beaconing"}
+    assert "significantly exceed" in entry["reason"]
+
+    by_id = client.get(f"/api/v1/anomalies/{entry['id']}").json()
+    assert by_id == entry
+
+    by_device = client.get("/api/v1/devices/1/anomalies").json()
+    assert by_device == listed
+
+
+def test_anomaly_by_id_404_when_missing(env: Env) -> None:
+    client, _ = env.login("viewer", VIEWER_PW)
+    assert client.get("/api/v1/anomalies/999").status_code == 404
+
+
+def test_anomalies_for_unknown_device_404(env: Env) -> None:
+    client, _ = env.login("viewer", VIEWER_PW)
+    assert client.get("/api/v1/devices/999/anomalies").status_code == 404
 
 
 def test_no_response_contains_secrets(env: Env, monkeypatch: pytest.MonkeyPatch) -> None:

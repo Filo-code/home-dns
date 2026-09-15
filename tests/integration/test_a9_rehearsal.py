@@ -27,6 +27,7 @@ from fastapi.testclient import TestClient
 from home_dns import cli
 from home_dns.api.app import create_app
 from home_dns.collector import Collector
+from home_dns.config.anomaly import load_anomaly_config
 from home_dns.config.filtering import load_filtering_config
 from home_dns.config.loader import load_config
 from home_dns.config.settings import Environment
@@ -157,7 +158,14 @@ def test_a9_full_offline_rehearsal(make_config_dir: MakeConfigDir) -> None:
     collector.flush()
 
     context = cli._dashboard_context(
-        loaded, provider, store, filtering.config, storage_config, paths, lambda: FIXED_NOW
+        loaded,
+        provider,
+        store,
+        filtering.config,
+        storage_config,
+        paths,
+        lambda: FIXED_NOW,
+        anomaly=load_anomaly_config(config_dir),
     )
     app = create_app(environment=Environment.DEVELOPMENT, provider=provider, dashboard=context)
     # https:// base_url: context.cookie_secure defaults True (DEV_PROFILE does not override it),
@@ -196,7 +204,14 @@ def test_a9_full_offline_rehearsal(make_config_dir: MakeConfigDir) -> None:
     store = DashboardStore.open(data_dir)
     try:
         context = cli._dashboard_context(
-            loaded, provider, store, filtering.config, storage_config, paths, lambda: FIXED_NOW
+            loaded,
+            provider,
+            store,
+            filtering.config,
+            storage_config,
+            paths,
+            lambda: FIXED_NOW,
+            anomaly=load_anomaly_config(config_dir),
         )
         recovered_app = create_app(
             environment=Environment.DEVELOPMENT, provider=provider, dashboard=context

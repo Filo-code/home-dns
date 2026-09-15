@@ -5,6 +5,7 @@
  */
 import type { components } from "./types.generated";
 
+export type AnomalyView = components["schemas"]["AnomalyView"];
 export type Counters = components["schemas"]["Counters"];
 export type DeviceActivity = components["schemas"]["DeviceActivity"];
 export type DeviceUpdate = components["schemas"]["DeviceUpdate"];
@@ -29,6 +30,7 @@ export type IncidentState = IncidentView["state"];
 export type HealthStatus = ProviderStatusView["status"];
 export type Role = SessionView["role"];
 export type IncidentSeverity = NonNullable<IncidentEventView["severity"]>;
+export type AnomalySeverity = AnomalyView["severity"];
 
 /**
  * `GET /api/v1/config` has no Pydantic `response_model` — `build_config_view()` in

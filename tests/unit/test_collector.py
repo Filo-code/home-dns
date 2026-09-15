@@ -7,6 +7,7 @@ from zoneinfo import ZoneInfo
 import pytest
 
 from home_dns.collector import Collector, DeviceRegistry
+from home_dns.core.anomaly import Anomaly, AnomalySignal
 from home_dns.core.metrics import Resolution
 from home_dns.core.models import DnsClient, QueryFilter, QueryOutcome, QueryPage
 from home_dns.providers.base import ProviderUnavailableError
@@ -234,3 +235,90 @@ def test_blocked_counts_keep_their_source(store: DashboardStore) -> None:
         QueryFilter(since=T0, until=clock.now, outcome=QueryOutcome.BLOCKED), limit=1000
     )
     assert blocked == by_source == len(page.entries) > 0
+
+
+# ------------------------------------------------------------------------------- anomaly wiring
+
+
+class _StubAnalyzer:
+    """Deterministic stand-in for AnomalyAnalyzer: proves the collector wires results through to
+    storage without depending on MockDnsProvider happening to generate anomalous traffic."""
+
+    def __init__(self, result: list[Anomaly]) -> None:
+        self._result = result
+        self.calls = 0
+
+    def observe(self, device_entries: object, group_of: object) -> list[Anomaly]:
+        self.calls += 1
+        return list(self._result)
+
+
+class _BrokenAnalyzer:
+    def observe(self, device_entries: object, group_of: object) -> list[Anomaly]:
+        raise RuntimeError("boom")
+
+
+def test_no_analyzer_means_no_anomaly_persistence(store: DashboardStore) -> None:
+    clock = Clock(T0)
+    provider = MockDnsProvider(now=clock)
+    collector = Collector(provider, store, tz=ROME, now=clock)
+    collector.poll()
+    clock.now += timedelta(minutes=10)
+    collector.poll()
+    collector.flush()
+    assert store.list_anomalies() == []
+
+
+def test_analyzer_results_are_persisted_on_flush(store: DashboardStore) -> None:
+    clock = Clock(T0)
+    provider = MockDnsProvider(now=clock)
+    canned = Anomaly(
+        device_id=1,
+        detected_at=T0,
+        signals=(AnomalySignal.NXDOMAIN_BURST,),
+        score=30,
+        severity="medium",
+        reason="NXDOMAIN rate significantly exceed this device's recent baseline",
+    )
+    analyzer = _StubAnalyzer([canned])
+    collector = Collector(
+        provider,
+        store,
+        tz=ROME,
+        now=clock,
+        anomaly_analyzer=analyzer,  # type: ignore[arg-type]
+        anomaly_retention=timedelta(days=30),
+    )
+    collector.poll()
+    clock.now += timedelta(minutes=10)
+    collector.poll()
+    assert analyzer.calls == 1  # first poll only bootstraps the watermark, reads nothing
+    collector.flush()
+    stored = store.list_anomalies()
+    assert len(stored) == 1
+    assert stored[0].signals == ("nxdomain_burst",)
+    # A second poll+flush cycle with no new results must not duplicate the old one.
+    clock.now += timedelta(minutes=10)
+    collector.poll()
+    collector.flush()
+    assert len(store.list_anomalies()) == 2  # analyzer returns the same canned result each call
+
+
+def test_broken_analyzer_does_not_break_the_collector(store: DashboardStore) -> None:
+    clock = Clock(T0)
+    provider = MockDnsProvider(now=clock)
+    collector = Collector(
+        provider,
+        store,
+        tz=ROME,
+        now=clock,
+        anomaly_analyzer=_BrokenAnalyzer(),  # type: ignore[arg-type]
+    )
+    collector.poll()
+    clock.now += timedelta(minutes=10)
+    read = collector.poll()  # must not raise, and metrics must still be collected
+    collector.flush()
+    assert read > 0
+    assert store.list_anomalies() == []
+    rows = store.rollups(Resolution.DAY, T0 - timedelta(days=1), T0 + timedelta(days=1))
+    assert sum(r[2].total for r in rows) > 0

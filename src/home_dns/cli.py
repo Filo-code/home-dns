@@ -25,6 +25,7 @@ from home_dns.api.context import CollectorRunner, DashboardContext, MaintenanceS
 from home_dns.api.views import build_config_view
 from home_dns.bootstrap import StartupRefusedError, build_runtime
 from home_dns.collector import Collector, RetentionWindows
+from home_dns.config.anomaly import AnomalyDetectionConfig, load_anomaly_config
 from home_dns.config.filtering import (
     FilteringLoadResult,
     filtering_config_files,
@@ -53,6 +54,7 @@ from home_dns.config.telegram import (
     load_telegram_config,
     telegram_config_files,
 )
+from home_dns.core.anomaly import AnomalyAnalyzer
 from home_dns.core.auth import Role, WeakPasswordError, hash_password
 from home_dns.core.blocklists import ArtifactFormatError, BlockEntry, parse_artifact
 from home_dns.core.domains import InvalidDomainError
@@ -538,6 +540,7 @@ def _serve(args: argparse.Namespace, err: TextIO, now: Callable[[], datetime]) -
     try:
         filtering = load_filtering_config(config_dir, now=now())
         storage_config = load_storage_config(config_dir)
+        anomaly_config = load_anomaly_config(config_dir)
     except ConfigLoadError as exc:
         print(f"configuration error: {exc}", file=err)
         return EXIT_LOAD_ERROR
@@ -564,7 +567,14 @@ def _serve(args: argparse.Namespace, err: TextIO, now: Callable[[], datetime]) -
             )
             return EXIT_NOT_READY
         context = _dashboard_context(
-            config, runtime.provider, store, filtering.config, storage_config, paths, now
+            config,
+            runtime.provider,
+            store,
+            filtering.config,
+            storage_config,
+            paths,
+            now,
+            anomaly=anomaly_config,
         )
         if args.static_dir is not None and not (args.static_dir / "index.html").is_file():
             print(
@@ -615,6 +625,7 @@ def _dashboard_context(
     paths: dict[str, Path],
     now: Callable[[], datetime],
     *,
+    anomaly: AnomalyDetectionConfig,
     disk: DiskUsageProvider | None = None,
 ) -> DashboardContext:
     settings = config.settings
@@ -645,8 +656,17 @@ def _dashboard_context(
             hour=timedelta(days=storage_config.retention.query_history_days),
             day=timedelta(days=metrics.day_retention_days),
         )
+        analyzer = AnomalyAnalyzer(anomaly.analyzer, now=now) if anomaly.enabled else None
         runner = CollectorRunner(
-            Collector(provider, store, tz=tz, retention=retention, now=now),
+            Collector(
+                provider,
+                store,
+                tz=tz,
+                retention=retention,
+                now=now,
+                anomaly_analyzer=analyzer,
+                anomaly_retention=timedelta(days=anomaly.retention_days),
+            ),
             metrics.poll_interval_seconds,
             metrics.flush_interval_seconds,
         )

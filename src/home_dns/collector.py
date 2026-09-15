@@ -14,6 +14,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from zoneinfo import ZoneInfo
 
+from home_dns.core.anomaly import Anomaly, AnomalyAnalyzer
 from home_dns.core.metrics import Resolution, Rollup, bucket_start
 from home_dns.core.models import DnsClient, QueryFilter, QueryLogEntry
 from home_dns.providers.base import DnsProvider, ProviderError
@@ -134,6 +135,8 @@ class Collector:
         tz: ZoneInfo,
         retention: RetentionWindows | None = None,
         now: Callable[[], datetime] = _utc_now,
+        anomaly_analyzer: AnomalyAnalyzer | None = None,
+        anomaly_retention: timedelta | None = None,
     ) -> None:
         self._provider = provider
         self._store = store
@@ -143,6 +146,9 @@ class Collector:
         self._registry = DeviceRegistry(store)
         self._watermark = store.load_watermark()
         self._pending: dict[tuple[datetime, int], Rollup] = {}
+        self._anomaly_analyzer = anomaly_analyzer
+        self._anomaly_retention = anomaly_retention
+        self._pending_anomalies: list[Anomaly] = []
 
     def poll(self) -> int:
         """Aggregate queries since the watermark. Returns how many were read.
@@ -164,10 +170,20 @@ class Collector:
             return 0
         for client in clients:
             self._registry.observe_client(client)
+        device_entries: list[tuple[int, QueryLogEntry]] = []
         for entry in entries:
             device_id = self._registry.resolve_address(str(entry.client_address), entry.time)
             key = (bucket_start(entry.time, Resolution.MINUTE, self._tz), device_id)
             self._pending.setdefault(key, Rollup()).add(entry)
+            device_entries.append((device_id, entry))
+        if self._anomaly_analyzer is not None:
+            try:
+                groups = {d.device_id: d.group_id for d in self._store.list_devices()}
+                self._pending_anomalies.extend(
+                    self._anomaly_analyzer.observe(device_entries, groups)
+                )
+            except Exception:
+                logger.exception("anomaly analysis failed, continuing without it")
         self._watermark = until
         return len(entries)
 
@@ -202,10 +218,15 @@ class Collector:
                     Resolution.HOUR: now - self._retention.hour,
                     Resolution.DAY: now - self._retention.day,
                 },
+                anomalies=tuple(self._pending_anomalies),
+                anomaly_retention_cutoff=(
+                    now - self._anomaly_retention if self._anomaly_retention is not None else None
+                ),
             )
         )
         self._registry.mark_flushed()
         self._pending.clear()
+        self._pending_anomalies.clear()
 
     def run(self, stop: threading.Event, *, poll_interval: float, flush_interval: float) -> None:
         """Loop until ``stop`` is set, then poll and flush once more."""

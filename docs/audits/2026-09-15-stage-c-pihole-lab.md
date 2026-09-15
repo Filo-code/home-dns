@@ -330,3 +330,18 @@ On a 4 GB Pi, an extra ~18 MiB RSS process and near-zero measured CPU/load delta
 - Docker: **not installed** — Unbound and Pi-hole are both native Debian packages.
 - No production hardening, no production timers, no LAN-wide rollout, no Fastweb Seven integration.
 - **The LAN still uses its existing DNS.** This remains a controlled laboratory installation only.
+
+## 21. Unbound configuration review (read-only, same day, no changes made)
+
+Requested before any anomaly-detection/VPN foundation work: re-inspect the live Unbound instance's actual effective settings for `qname-minimisation`, `aggressive-nsec`, `serve-expired` (serve-stale), rather than assuming from memory of what was written into `pihole-lab.conf` at install time. Checked via `unbound-checkconf -o <option>` against the running config, read-only:
+
+| Setting | Effective value | Source |
+|---|---|---|
+| `qname-minimisation` | `yes` | Explicitly set in `pihole-lab.conf` |
+| `prefetch` | `yes` | Explicitly set in `pihole-lab.conf` |
+| `aggressive-nsec` | `yes` | **Unbound's own compiled-in default** (not explicitly set by us) — already correct, no action needed |
+| `serve-expired` (serve-stale, RFC 8767) | `no` | **Absent** — Unbound's default is off |
+
+**Recommendation, not applied:** `serve-expired: yes` (with a short `serve-expired-ttl`) would let Unbound answer from a just-expired cache entry while it refreshes in the background, improving resilience during a brief upstream hiccup. This is a genuine, low-risk improvement candidate for a future pass — not implemented here, per the explicit "no speculative tuning" instruction for this review. No other absent setting was identified as a compelling exception to that rule.
+
+No file was modified. No service was restarted.
