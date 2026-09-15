@@ -536,11 +536,6 @@ def _serve(args: argparse.Namespace, err: TextIO, now: Callable[[], datetime]) -
         print("serve is development-only until the Raspberry Pi deployment (phase C4)", file=err)
         return EXIT_NOT_READY
     try:
-        runtime = build_runtime(config)
-    except (StartupRefusedError, ProviderError) as exc:
-        print(f"startup refused: {exc}", file=err)
-        return EXIT_NOT_READY
-    try:
         filtering = load_filtering_config(config_dir, now=now())
         storage_config = load_storage_config(config_dir)
     except ConfigLoadError as exc:
@@ -548,6 +543,12 @@ def _serve(args: argparse.Namespace, err: TextIO, now: Callable[[], datetime]) -
         return EXIT_LOAD_ERROR
     if filtering.errors:
         print("startup refused: the filtering configuration has errors", file=err)
+        return EXIT_NOT_READY
+    source_urls = {source.id: str(source.urls.primary) for source in filtering.config.sources}
+    try:
+        runtime = build_runtime(config, source_urls=source_urls)
+    except (StartupRefusedError, ProviderError) as exc:
+        print(f"startup refused: {exc}", file=err)
         return EXIT_NOT_READY
     paths = _resolved_paths(config)
     if paths is None:  # pragma: no cover - build_runtime already refuses placeholders

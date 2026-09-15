@@ -6,8 +6,8 @@ import pytest
 from home_dns.bootstrap import StartupRefusedError, build_provider, build_runtime
 from home_dns.config.loader import load_config
 from home_dns.config.settings import Environment
-from home_dns.providers.base import ProviderNotAvailableError
 from home_dns.providers.mock import MockDnsProvider
+from home_dns.providers.pihole_v6 import PiholeV6Provider
 from tests.conftest import DEV_PROFILE, PROD_READY_PROFILE
 
 MakeConfigDir = Callable[..., Path]
@@ -54,7 +54,7 @@ def test_production_with_mock_provider_is_refused(make_config_dir: MakeConfigDir
         build_runtime(loaded)
 
 
-def test_ready_pihole_configuration_reports_provider_not_available_until_c2(
+def test_ready_pihole_configuration_builds_a_real_provider(
     make_config_dir: MakeConfigDir, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setenv("HOME_DNS_PIHOLE_APP_PASSWORD", "x")
@@ -62,5 +62,7 @@ def test_ready_pihole_configuration_reports_provider_not_available_until_c2(
         environment=Environment.PRODUCTION,
         config_dir=make_config_dir(PROD_READY_PROFILE, env="production"),
     )
-    with pytest.raises(ProviderNotAvailableError, match="C2"):
-        build_runtime(loaded)
+    runtime = build_runtime(loaded)
+    assert isinstance(runtime.provider, PiholeV6Provider)
+    assert runtime.provider.name == "pihole_v6"
+    assert runtime.report.is_ready()
